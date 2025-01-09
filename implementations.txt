@@ -1,0 +1,71 @@
+
+Implementation + background --------
+
+Fast multipole 3d
+https://fmm3d.readthedocs.io/en/latest/install.html#building-python-wrappers
+
+Gauss-legendre integrator (numpy)
+https://www.askpython.com/python-modules/numpy/gauss-legendre-quadrature-numpy
+
+General N-body leapfrog integration
+https://medium.com/quantaphy/the-n-body-problem-2acda67b11b5
+https://maths.ucd.ie/~plynch/LECTURE-NOTES/NWP-2004/NWP-CH03-2-2.pdf
+
+Python N-body sim
+https://github.com/brandones/n-body
+https://github.com/pearsonkyle/Nbody-AI (Machine Learning)
+
+
+N-body integrator with python module and usable for celestial bodies + dust particles
+https://rebound.readthedocs.io/en/latest/
+
+Numerical methods comparisons
+https://nhsjs.com/2024/efficient-numerical-methods-for-n-body-simulations-with-modern-computational-techniques/
+https://www.cs.cmu.edu/afs/cs.cmu.edu/project/scandal/public/papers/dimacs-nbody.pdf
+
+
+Nbody-Particle mesh may be needed for earth atmosphere
+https://www.dannywray.co.uk/pdf/n-body-simulations-using-the-particle-mesh-method.pdf
+https://github.com/MP-Gadget/pmesh (full sim app)
+
+atmosphere model + code python
+https://storm.uml.edu/~metweb/newBlog/wordpress/2020/05/11/simple-atmospheric-models-resources/
+
+Mesh shit
+https://github.com/fwilliams/point-cloud-utils (contains some useful search algs)
+https://pymesh.readthedocs.io/en/latest/
+
+This implements a drag model into N-body
+https://link.springer.com/article/10.1007/s10569-022-10119-y
+
+
+
+
+
+
+
+
+
+Data / Info ----------------------
+
+Earth fact sheet
+https://nssdc.gsfc.nasa.gov/planetary/factsheet/earthfact.html
+
+
+
+
+
+
+Visualisation ------------------
+
+Pyvista plotting celestial bodies
+https://docs.pyvista.org/examples/99-advanced/planets.html
+
+existing sim visualiser
+https://sunsistemo.js.org/?s=Two-Bodies
+
+
+
+
+
+
