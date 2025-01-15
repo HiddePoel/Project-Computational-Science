@@ -7,7 +7,7 @@ def init_solar():
 
     ...
 
-    #return pos, vel, mass
+    # return pos, vel, mass
 
 
 def init_satellites():
@@ -49,12 +49,66 @@ def verlet_update():
     ...
 
 
+# used for earth sim
 def twobody_next_pos():
     ...
 
 
+# used for earth sim
 def twobody_update():
     ...
+
+
+def sat_opening(pos_sat, pos_launch, normal_launch):
+    # calculates how large the opening is above launch location. We need to
+    # somehow keep track of earth's orientation idk how. we can start with
+    # the math to actually calculate the opening first
+
+    # pos_launch = 3d pos
+    # normal_launch = vector perpendicular to earth surface at pos_launch.
+
+    # return the radius of the largest cilinder we can make in the atmosphere
+    # in the direction of 'normal_launch' that doesn't contain a sattelite.
+    ...
+
+
+def vis_earth(current_pos):
+    ...
+
+
+def vis_solar(current_pos):
+    ...
+
+
+def main_solar():
+    pos, vel, m = init_solar()
+
+    # time to sim
+    tts = 100
+    dt = 0.1
+
+    for step in range(tts // dt):
+        vis_solar(pos)
+        verlet_update()
+
+
+def main_earth():
+    pos, vel, m = init_satellites()
+
+    # time to sim
+    tts = 100
+    dt = 0.1
+
+    opening_thresh = 10
+    launcht_candidates = []
+
+    for step in range(tts // dt):
+        vis_earth(pos)
+        twobody_update()
+        if opening_thresh <= sat_opening():
+            # snapshot current time and position of satellites and earth
+            # add this to launcht_candidates or somewhere else.
+            ...
 
 
 if __name__ == "__main__":
