@@ -1,3 +1,4 @@
+import os
 import numpy as np
 
 """
@@ -47,95 +48,116 @@ CALENDAR SYSTEM:
 - Units: visual magnitudes/arcsecond² and unitless SNR.
 """
 
+DEBUG = False
 
 def read_data(file_path: str) -> np.ndarray:
-    with open(file_path, "r") as file:
-        lines = file.readlines()
+    try:
+        with open(file_path, "r") as file:
+            lines = file.readlines()
+    except FileNotFoundError:
+        print(f"Error: File '{file_path}' not found.")
+        return np.empty((0, 6), dtype=np.float64)
 
-    # Find the index of the "$$SOE" marker
-    start_index = 0
+    # Find the start and end indices of the data block
+    start_index, end_index = None, None
     for i, line in enumerate(lines):
         if line.strip() == "$$SOE":
-            start_index = i + 1
+            start_index = i
+        elif line.strip() == "$$EOE":
+            end_index = i
             break
 
-    # Extract data lines after the "$$SOE" marker
-    data_lines = []
-    for line in lines[start_index:]:
-        if line.strip() == "$$EOE":
-            break
-        data_lines.append(line)
+    if start_index is None:
+        print(f"Error: '$$SOE' marker not found in '{file_path}'.")
+        return np.empty((0, 6), dtype=np.float64)
+    if end_index is None:
+        print(f"Error: '$$EOE' marker not found in '{file_path}'.")
+        return np.empty((0, 6), dtype=np.float64)
 
-    # Prepare a list to hold the parsed data
+    # Extract data lines
+    data_lines = lines[start_index + 1 : end_index]
+
+    # Prepare to store the required fields as numeric columns
     data = []
-
     for line in data_lines:
-        # print(f"Bug0:    {line}")
         parts = line.split()
         if len(parts) < 15:
+            print(f"Skipping incomplete line: {line.strip()}")
             continue
-        date_time = parts[0] + " " + parts[1]
-        ra = parts[2] + " " + parts[3] + " " + parts[4]
-        dec = parts[5] + " " + parts[6] + " " + parts[7]
-        apmag = float(parts[8])
-        s_brt = float(parts[9])
-        delta = float(parts[10])
-        deldot = float(parts[11])
-        s_o_t = float(parts[12])
-        # print(f"Bug:    {parts[13]}")
-        s_t_o = float(parts[14])
-        sky_motion = float(parts[15])
-        sky_mot_pa = float(parts[16])
-        relvel_ang = float(parts[17])
-        lun_sky_brt = parts[18]
-        sky_snr = parts[19]
+        try:
+            # Parse RA (hours, minutes, seconds)
+            ra_h = float(parts[2])
+            ra_m = float(parts[3])
+            ra_s = float(parts[4])
 
-        data.append(
-            [
-                date_time,
-                ra,
-                dec,
-                apmag,
-                s_brt,
-                delta,
-                deldot,
-                s_o_t,
-                s_t_o,
-                sky_motion,
-                sky_mot_pa,
-                relvel_ang,
-                lun_sky_brt,
-                sky_snr,
-            ]
-        )
+            # Parse DEC (degrees, minutes, seconds)
+            dec_d = float(parts[5])
+            dec_m = float(parts[6])
+            dec_s = float(parts[7])
 
-    # Convert the list to a NumPy array
-    data_array = np.array(data, dtype=object)
+            # Parse delta (distance)
+            delta = float(parts[10])
 
-    return data_array
+            # Store all as numeric values
+            data.append([ra_h, ra_m, ra_s, dec_d, dec_m, dec_s, delta])
+        except ValueError:
+            print(f"Skipping malformed line: {line.strip()}")
+            continue
+
+    return np.array(data, dtype=np.float64)
 
 
 def calculate_xyz_coordinates(data: np.ndarray) -> np.ndarray:
-    # Extract the distance from the observer (in AU)
-    delta = data[:, 5].astype(float)
+    # Debug print to verify the shape and sample data
+    if DEBUG:
+        print(f"Debug: Data shape = {data.shape}, Sample row = {data[0]}")
 
-    # Extract the Sun-Observer-Target angle (solar elongation) in degrees
-    s_o_t = data[:, 7].astype(float)
+    try:
+        # Extract delta (distance in AU)
+        delta = data[:, 6]  # The 7th column is delta
 
-    # Calculate the x, y, z coordinates in the observer's frame
-    x = delta * np.cos(np.radians(s_o_t))
-    y = delta * np.sin(np.radians(s_o_t))
-    z = np.zeros_like(x)
+        # Convert RA (hours, minutes, seconds) to degrees
+        ra_deg = (data[:, 0] + data[:, 1] / 60 + data[:, 2] / 3600) * 15
 
-    # Combine the x, y, z coordinates into a single NumPy array
-    xyz_coordinates = np.column_stack((x, y, z))
+        # Convert DEC (degrees, minutes, seconds) to degrees
+        dec_deg = np.sign(data[:, 3]) * (np.abs(data[:, 3]) + data[:, 4] / 60 + data[:, 5] / 3600)
 
-    return xyz_coordinates
+        # Convert RA and DEC to radians
+        ra_rad = np.radians(ra_deg)
+        dec_rad = np.radians(dec_deg)
+    except IndexError as e:
+        print(f"Error: Data format mismatch. Ensure input contains 7 columns. Details: {e}")
+        return np.array([])
+    except ValueError as e:
+        print(f"Error: Non-numeric values detected in data. Details: {e}")
+        return np.array([])
+
+    # Calculate Cartesian coordinates
+    x = delta * np.cos(dec_rad) * np.cos(ra_rad)
+    y = delta * np.cos(dec_rad) * np.sin(ra_rad)
+    z = delta * np.sin(dec_rad)
+
+    # Combine x, y, z into a single NumPy array
+    return np.column_stack((x, y, z))
 
 
-filenames = ["sun.txt", "mercury.txt", "venus.txt", "mars.txt", "jupiter.txt", "saturn.txt", "uranus.txt", "neptune.txt"]
+celestial_body_names = [
+    "sun",
+    "mercury",
+    "venus",
+    "mars",
+    "jupiter",
+    "saturn",
+    "uranus",
+    "neptune",
+]
+
+filenames = [body_name + ".txt" for body_name in celestial_body_names]
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
 
 for filename in filenames:
-    data = read_data(filename)
-    ...
-
+    data = read_data(script_dir + "/" + filename)
+    coordinates = calculate_xyz_coordinates(data)
+    print(f"saving {filename.split('.')[0]}_coordinates.npy")
+    np.save(script_dir + "/" + filename.split(".")[0] + "_coordinates.npy", coordinates)
