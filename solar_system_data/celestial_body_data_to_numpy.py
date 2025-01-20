@@ -48,7 +48,7 @@ CALENDAR SYSTEM:
 - Units: visual magnitudes/arcsecond² and unitless SNR.
 """
 
-DEBUG = False
+DEBUG = True
 
 def read_data(file_path: str) -> np.ndarray:
     try:
@@ -161,3 +161,6 @@ for filename in filenames:
     coordinates = calculate_xyz_coordinates(data)
     print(f"saving {filename.split('.')[0]}_coordinates.npy")
     np.save(script_dir + "/" + filename.split(".")[0] + "_coordinates.npy", coordinates)
+    if DEBUG:
+        print(f"{coordinates[:100]}")
+        DEBUG = False
