@@ -86,14 +86,48 @@ def verlet_update(poss, vels, masses, dt):
 
 
 # used for earth sim
-def twobody_next_pos():
-    ...
+def twobody_update(pos1, pos2, vel1, vel2, mass1, mass2, dt):
+    """
+    Compute the next positions of a two-body system using the Verlet integration method.
 
+    Parameters:
+    - pos1, pos2: Current positions of the two bodies (numpy arrays).
+    - vel1, vel2: Current velocities of the two bodies (numpy arrays).
+    - mass1, mass2: Masses of the two bodies.
+    - dt: Time step.
+
+    Returns:
+    - pos1_next, pos2_next: Updated positions.
+    - vel1_next, vel2_next: Updated velocities.
+    """
+    # Compute gravitational force on body 1 due to body 2
+    F = force(pos1, pos2, mass1, mass2)
+    
+    # Compute accelerations (Newton's third law)
+    a1 = F / mass1
+    a2 = -F / mass2  
+    
+    # Update positions
+    pos1_next = pos1 + vel1 * dt + 0.5 * a1 * dt**2
+    pos2_next = pos2 + vel2 * dt + 0.5 * a2 * dt**2
+    
+    # Compute forces at next positions
+    F_next = force(pos1_next, pos2_next, mass1, mass2)
+    
+    # Compute new accelerations
+    a1_next = F_next / mass1
+    a2_next = -F_next / mass2
+    
+    # Update velocities
+    vel1_next = vel1 + 0.5 * (a1 + a1_next) * dt
+    vel2_next = vel2 + 0.5 * (a2 + a2_next) * dt
+    
+    return pos1_next, pos2_next, vel1_next, vel2_next
 
 # used for earth sim
-def twobody_update():
+# is this really needed?
+def twobody_next_pos():
     ...
-
 
 def sat_opening(pos_sat, pos_launch, normal_launch):
     # calculates how large the opening is above launch location. We need to
@@ -105,9 +139,61 @@ def sat_opening(pos_sat, pos_launch, normal_launch):
 
     # return the radius of the largest cilinder we can make in the atmosphere
     # in the direction of 'normal_launch' that doesn't contain a sattelite.
-    ...
+    """
+    Calculates the radius of the largest cylinder aligned with the launch normal
+    that does not contain any satellites.
 
+    Parameters:
+    - pos_sat (np.ndarray): Array of satellite positions, shape (N, 3).
+    - pos_launch (np.ndarray): 3D position vector of the launch site, shape (3,).
+    - normal_launch (np.ndarray): Vector perpendicular to Earth's surface at launch site, shape (3,).
 
+    Returns:
+    - max_radius (float): Radius of the largest satellite-free cylinder in meters.
+    """
+    # Validate inputs
+    if not isinstance(pos_sat, np.ndarray) or pos_sat.ndim != 2 or pos_sat.shape[1] != 3:
+        raise ValueError("pos_sat must be a NumPy array with shape (N, 3).")
+    if not isinstance(pos_launch, np.ndarray) or pos_launch.shape != (3,):
+        raise ValueError("pos_launch must be a NumPy array with shape (3,).")
+    if not isinstance(normal_launch, np.ndarray) or normal_launch.shape != (3,):
+        raise ValueError("normal_launch must be a NumPy array with shape (3,).")
+    if np.linalg.norm(normal_launch) == 0:
+        raise ValueError("normal_launch vector must be non-zero.")
+
+    # Normalize the launch axis
+    launch_axis = normal_launch / np.linalg.norm(normal_launch)
+
+    # Vector from launch site to each satellite
+    vec_to_sat = pos_sat - pos_launch  # Shape: (N, 3)
+
+    # Compute cross product between vec_to_sat and launch_axis
+    cross_prod = np.cross(vec_to_sat, launch_axis)  # Shape: (N, 3)
+
+    # Compute perpendicular distances from satellites to the launch axis
+    distances = np.linalg.norm(cross_prod, axis=1)  # Shape: (N,)
+
+    # If there are no satellites, define a maximum radius (maybe based on atmospheric thickness)
+    if len(distances) == 0:
+        # Define maximum radius as 100 km 
+        max_radius = 100000  
+        return max_radius
+
+    # Minimum distance is the largest possible radius without containing any satellite
+    min_distance = np.min(distances)
+
+    # Define a safety margin
+    safety_margin = 100  
+
+    # Calculate max_radius by subtracting safety margin from min_distance
+    max_radius = min_distance - safety_margin
+
+    # Ensure the radius is non-negative
+    max_radius = max(max_radius, 0)
+
+    return max_radius
+ 
+ 
 def vis_earth(current_pos):
     ...
 
