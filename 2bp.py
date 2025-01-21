@@ -47,8 +47,9 @@ def kepler(mo, ecco, tolerance=1e-6, max_iter=100):
     # Returns eccentric anomaly.
     E = mo
     for _ in range(max_iter):
-        E += (mo - (E - ecco * np.sin(E))) / (1 - ecco * np.cos(E))
-        if np.abs(e - E) < tolerance:
+        dE = (mo - (E - ecco * np.sin(E))) / (1 - ecco * np.cos(E))
+        E += dE
+        if abs(dE) < tolerance:
             break
 
     return E
@@ -75,6 +76,22 @@ def position(t, oe, t0, m, G=1.0):
 
     return np.array([x_orb, y_orb, z_orb])
 
+
+def validate():
+    sats = satellites[:2]
+    oe = np.zeros(shape=(2, 6), dtype=np.float64)
+    for s in range(2):
+        sat = sats[s]
+        oe[s, :] = np.array([sat.ecco, sat.a, sat.inclo, sat.nodeo, sat.argpo, sat.mo])
+
+    cdata = [sat.sgp4(jd, fr) for sat in sats]
+    pdata = [position(jd, oe[i], jd, 5.972e24, 6.67430e-11) for i in range(2)]
+    print(cdata)
+    print(pdata)
+    print(cdata - pdata)
+
+
+validate()
 
 # satarr = SatrecArray(satellites)
 # e, r, v = satarr.sgp4(jd, fr)
