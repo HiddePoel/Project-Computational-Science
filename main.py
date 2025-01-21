@@ -17,70 +17,49 @@ def init_satellites():
 
 def force(pos_a, pos_b, m_a, m_b):
     # G = 6.67408e-11
-    G = 1
+    G = 1.0
 
     # Force on point A due to point B
     F = G * m_a * m_b / np.linalg.norm(pos_b - pos_a)**3 * (pos_b - pos_a)
     return F
 
 
-def force_all(idx, pos, mass):
-    # calculate the force on body with index 'idx', due to all
-    # the other bodies (with indexes =/= 'idx'). 'pos' and 'mass' are arrays.
-    mask = np.ones_like(mass, dtype=bool)
-    mask[idx] = False
+def pairwise_forces(pos, masses, G=1.0):
+    diff = pos[:, np.newaxis, :] - pos[np.newaxis, :, :]
+    distances = np.linalg.norm(diff, axis=-1)
+    distances_inv3 = np.where(distances > 0, distances**-3, 0)
 
-    pos_B = pos[mask]
-    m_B = mass[mask]
+    forces = G * diff * (distances_inv3[:, :, np.newaxis] * (masses[:, np.newaxis] * masses[np.newaxis, :])[:, :, np.newaxis])
 
-    pos_a = pos[idx]
-    m_a = mass[idx]
-
-    F = np.array((0.0, 0.0, 0.0))
-    for i in range(len(pos_B)):
-        F += force(pos_a, pos_B[i], m_a, m_B[i])
-
-    return F
+    net_forces = np.sum(forces, axis=1) * -1
+    return net_forces
 
 
-def accel(pos_a, pos_b, m_a, m_b):
-    return force(pos_a, pos_b, m_a, m_b) / m_a
+# def accel(pos_a, pos_b, m_a, m_b):
+#     return force(pos_a, pos_b, m_a, m_b) / m_a
 
 
-def accel_all(idx, pos, mass):
-    mask = np.ones_like(mass, dtype=bool)
-    mask[idx] = False
+# def accel_all(idx, pos, mass):
+#     mask = np.ones_like(mass, dtype=bool)
+#     mask[idx] = False
 
-    pos_B = pos[mask]
-    m_B = mass[mask]
+#     pos_B = pos[mask]
+#     m_B = mass[mask]
 
-    pos_a = pos[idx]
-    m_a = mass[idx]
+#     pos_a = pos[idx]
+#     m_a = mass[idx]
 
-    a = 0.0
-    for i in range(len(pos_B)):
-        a += accel(pos_a, pos_B[i], m_a, m_B[i])
-    return a
+#     a = 0.0
+#     for i in range(len(pos_B)):
+#         a += accel(pos_a, pos_B[i], m_a, m_B[i])
+#     return a
 
 
-def verlet_update(poss, vels, masses, dt):
-    N = len(poss)
-
-    accs = np.zeros_like(vels, dtype=np.float64)
-    for idx in range(N):
-        accs[idx] = accel_all(idx, poss, masses)
-
-    pos_next = np.zeros_like(poss, dtype=np.float64)
-    for idx in range(N):
-        pos_next[idx] = poss[idx] + vels[idx] * dt + 0.5 * accs[idx] * dt**2
-
-    acc_next = np.zeros_like(accs)
-    for idx in range(N):
-        acc_next[idx] = accel_all(idx, pos_next, masses)
-
-    vel_next = np.zeros_like(vels, dtype=np.float64)
-    for idx in range(N):
-        vel_next[idx] = vels[idx] + (accs[idx] + acc_next[idx]) / 2 * dt
+def verlet_update(pos, vel, masses, dt, G=1.0):
+    acc = pairwise_forces(pos, masses, G) / masses[:, np.newaxis]
+    pos_next = pos + vel * dt + 0.5 * acc * dt**2
+    acc_next = pairwise_forces(pos_next, masses, G) / masses[:, np.newaxis]
+    vel_next = vel + 0.5 * (acc + acc_next) * dt
 
     return pos_next, vel_next
 
@@ -208,10 +187,6 @@ def main_solar():
     # time to sim
     tts = 100
     dt = 0.1
-
-    # acc = np.zeros_like(pos, dtype=np.float64)
-    # for idx in range(len(pos)):
-    #     acc[idx] = accel_all(idx, pos, m)
 
     pos_next, vel_next = verlet_update(pos, vel, m, dt)
     for step in range(tts - 1 // dt):

@@ -5,7 +5,6 @@ import main
 points = np.random.uniform(-100, 100, size=(10, 3))
 vels = np.random.uniform(-10, 10, size=(10, 3))
 masses = np.random.uniform(1, 100, size=10)
-print(masses[np.newaxis, :, np.newaxis])
 
 
 def pairwise_distances(pos):
@@ -22,20 +21,43 @@ def pairwise_distances(pos):
 # print(diff2)
 
 
+# def pairwise_forces(pos, masses, G=1.0):
+#     distances, diff = pairwise_distances(pos)
+#     distances_inv3 = np.where(distances > 0, distances**-3, 0)
+
+#     forces = G * diff * (distances_inv3[:, :, np.newaxis] * (masses[:, np.newaxis] * masses[np.newaxis, :])[:, :, np.newaxis])
+
+#     # print(forces)
+
+#     net_forces = np.sum(forces, axis=1) * -1
+#     return net_forces
+
+
+# pw_f = pairwise_forces(points, masses)
+# print(pw_f[0])
+# print()
+
+# f = main.force_all(0, points, masses)
+# print(f)
+# print()
+
+# for i in range(len(points)):
+#     print("point ", i, " -----------")
+#     f = main.force_all(i, points, masses)
+#     print(f)
+#     print(pw_f[i])
+#     print(pw_f[i] + f)
+
+
 def pairwise_forces(pos, masses, G=1.0):
-    distances, diff = pairwise_distances(pos)
+    diff = pos[:, np.newaxis, :] - pos[np.newaxis, :, :]
+    distances = np.linalg.norm(diff, axis=-1)
     distances_inv3 = np.where(distances > 0, distances**-3, 0)
+
     forces = G * diff * (distances_inv3[:, :, np.newaxis] * (masses[:, np.newaxis] * masses[np.newaxis, :])[:, :, np.newaxis])
-    net_forces = np.sum(forces, axis=1)
+
+    net_forces = np.sum(forces, axis=1) * -1
     return net_forces
-
-
-pw_f = pairwise_forces(points, masses)
-print(pw_f[0])
-print()
-
-f = main.force_all(0, points, masses)
-print(f)
 
 
 def fast_verlet_update(pos, vel, masses, dt, G=1.0):
@@ -45,4 +67,9 @@ def fast_verlet_update(pos, vel, masses, dt, G=1.0):
     vel_next = vel + 0.5 * (acc + acc_next) * dt
 
     return pos_next, vel_next
+
+
+# npos, nvel = main.verlet_update(points, vels, masses, 0.1)
+# fpos, fvel = fast_verlet_update(points, vels, masses, 0.1)
+# print(npos - fpos)
 
