@@ -42,7 +42,39 @@ for s in range(N):
     sat = satellites[s]
     oe[s, :] = np.array([sat.ecco, sat.a, sat.inclo, sat.nodeo, sat.argpo, sat.mo])
 
-print(oe[0])
 
-satarr = SatrecArray(satellites)
-e, r, v = satarr.sgp4(jd, fr)
+def kepler(mo, ecco, tolerance=1e-6, max_iter=100):
+    # Returns eccentric anomaly.
+    E = mo
+    for _ in range(max_iter):
+        E += (mo - (E - ecco * np.sin(E))) / (1 - ecco * np.cos(E))
+        if np.abs(e - E) < tolerance:
+            break
+
+    return E
+
+
+def position(t, oe, t0, m, G=1.0):
+    ecco = oe[0]
+    a = oe[1]
+    inclo = oe[2]
+    nodeo = oe[3]
+    argpo = oe[4]
+    mo = oe[5]
+
+    n = np.sqrt(G * m / a ** 3)
+    M = mo + n * (t - t0)
+    E = kepler(M, ecco)
+
+    nu = 2 * np.arctan(np.sqrt((1 + ecco) / (1 - ecco)) * np.tan(E / 2))
+    r = a * (1 - ecco ** 2) / (1 + ecco * np.cos(nu))
+
+    x_orb = r * (np.cos(nodeo) * np.cos(argpo + nu) - np.sin(nodeo) * np.sin(argpo + nu) * np.cos(inclo))
+    y_orb = r * (np.sin(nodeo) * np.cos(argpo + nu) + np.cos(nodeo) * np.sin(argpo + nu) * np.cos(inclo))
+    z_orb = r * np.sin(inclo)
+
+    return np.array([x_orb, y_orb, z_orb])
+
+
+# satarr = SatrecArray(satellites)
+# e, r, v = satarr.sgp4(jd, fr)
