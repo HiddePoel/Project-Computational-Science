@@ -44,7 +44,9 @@ def satellites():
     return pos, vel
 
 
-def myplanets():
+# The planets in the list are in order starting with mercury. The last element
+# of this list is the sun.
+def planets():
     planet_data = [[57.96, 7.0, 47.4],
                    [108.26, 3.4, 35.0],
                    [149.6, 0, 29.8],
@@ -111,7 +113,7 @@ def myplanets():
     return planets_pos, planets_vel, planets_mass
 
 
-def planets():
+def planets_original():
     planet_data = {
         "MERCURY": {"distance": 57.96, "mass": 0.330, "inclination": 7.0, "orbital velocity": 47.4},
         "VENUS": {"distance": 108.26, "mass": 4.87, "inclination": 3.4, "orbital velocity": 35.0},
@@ -231,7 +233,3 @@ def planets():
 
     planets_mass[9] = 1988416.0
     return planets_pos, planets_vel, planets_mass
-
-
-if __name__ == "__main__":
-    print(myplanets())
