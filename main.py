@@ -197,12 +197,15 @@ if __name__ == "__main__":
 
         # Checks for a candidate launch time.
         if sat_opening_thresh < sat_opening():
-            # SAVE THE CURRENT POSITION OF ALL THE PLANETS AND NORMAL VECTOR OF
-            # THE LAUNCH SITE
-            ...
+            # GET THE LAUNCH NORMAL VECTOR HERE
+            launch_normal = ...
 
-            # EITHER SPAWN A SUBPROCESS THAT SEARCHES FOR A PATH TO JUPITER OR
-            # SAVE THE POS AND NORMAL TO A FILE TO BE PROCESSED LATER
+            # Save current permutation to a file
+            path = "snapshots/" + str(t) + ".txt"
+            np.savez(path, positions=planets_pos, launch_normal=launch_normal)
+
+            # EITHER SPAWN A SUBPROCESS AND FIND A PATH NOW OR PROCESS ALL OF
+            # snapshots DIR AFTER.
             ...
 
     ...
