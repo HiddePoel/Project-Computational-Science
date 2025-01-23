@@ -1,18 +1,163 @@
 import numpy as np
+import pandas as pd
+
+# Open and read the data files
+planet_path = 'planet_data.txt'
+satellite_path = 'tle_active.txt'
+
+with open(satellite_path, 'r') as satellite_file:
+    lines = satellite_file.readlines()
+
+# Read test tle file and organize into name, line1 and line2
+sat_table = []
+
+for i in range(0, len(lines), 3):
+    name = lines[i].strip()
+    line_1 = lines[i+1].strip()
+    line_2 = lines[i+2].strip()
+
+    sat_table.append([name, line_1, line_2])
+
+columns = ['Name', 'Line 1', 'Line 2']
+satellite_df = pd.DataFrame(sat_table, columns=columns)
+
+# Read planet data into df
+plan_table = []
+current_data = {}
+with open(planet_path, 'r') as planet_file:
+    for line in planet_file:
+        line = line.strip()
+        # An empty line means the end of data of one planet
+        if not line:
+            if current_data:
+                plan_table.append(current_data)
+                current_data = {}
+        else:
+            key, value = line.split(':',1)
+            current_data[key.strip()] = value.strip()
+    if current_data:
+        plan_table.append(current_data)
+
+planet_df = pd.DataFrame(plan_table)
 
 
-def init_solar():
-    # Initialize position(3d), velocity(3d), and mass of celestial bodies not
-    # including satellites. So sun, planets, moons.
+def init_solar(solar_file):
+    initial_coord = {}
+    results = []
 
-    ...
+    for _, row in solar_file.iterrows():
+        # Separate info in RA and DEC (hour, minutes, seconds)
+        ra_parts = row['RA'].split()
+        dec_parts = row['DEC'].split()
 
-    # return pos, vel, mass
+        # Convert RA and DEC to floats and then degrees
+        ra_h, ra_min, ra_sec = map(float, ra_parts)
+        dec_h, dec_min, dec_sec = map(float, dec_parts)
+        distance = float(row['Distance'])  
+
+        ra_deg = ra_h * 15 + ra_min * 15 / 60 + ra_sec * 15 / 3600
+        dec_deg = (abs(dec_h) + dec_min / 60 + dec_sec / 3600) * (-1 if dec_h < 0 else 1)
+
+        # Convert degrees to radians
+        ra_rad = np.radians(ra_deg)
+        dec_rad = np.radians(dec_deg)
+
+        # Calculate Cartesian coordinates
+        x = distance * np.cos(dec_rad) * np.cos(ra_rad)
+        y = distance * np.cos(dec_rad) * np.sin(ra_rad)
+        z = distance * np.sin(dec_rad)
+
+        # Store initial coordinates
+        initial_coord[row['Planet']] = {'x': x, 'y': y, 'z': z}
+
+    # Adjust coordinates to be relative to Earth
+    earth_position = initial_coord.get('EARTH', {'x': 0, 'y': 0, 'z': 0})
+    for planet, coords in initial_coord.items():
+        if planet != 'EARTH':
+            initial_coord[planet]['x'] -= earth_position['x']
+            initial_coord[planet]['y'] -= earth_position['y']
+            initial_coord[planet]['z'] -= earth_position['z']
+
+    # Calculate orbital velocity and inclination adjustments
+    for _, row in solar_file.iterrows():
+        planet = row['Planet']
+        distance = float(row['Distance'])
+        inclination = np.radians(float(row['Inclination']))
+        orb_vel = float(row['Orbital Velocity'])
+
+        # Get the initial coordinates
+        coords = initial_coord.get(planet, {'x': 0, 'y': 0, 'z': 0})
+        x, y, z = coords['x'], coords['y'], coords['z']
+
+        # Apply rotation matrix for inclination
+        rotation_matrix = np.array([
+            [1, 0, 0],
+            [0, np.cos(inclination), -np.sin(inclination)],
+            [0, np.sin(inclination), np.cos(inclination)]
+        ])
+        rotated_coords = np.dot(rotation_matrix, np.array([x, y, z]))
+
+        # Calculate velocity
+        theta = np.arctan2(y, x)
+        v_x = -orb_vel * np.sin(theta)
+        v_y = orb_vel * np.cos(theta)
+        v_z = 0
+        velocity = np.array([v_x, v_y, v_z])
+        rotated_velocity = np.dot(rotation_matrix, velocity)
+
+        results.append({
+            'Planet': planet,
+            'Position X (kme6)': rotated_coords[0],
+            'Position Y (kme6)': rotated_coords[1],
+            'Position Z (kme6)': rotated_coords[2],
+            'Velocity X (km/s)': rotated_velocity[0],
+            'Velocity Y (km/s)': rotated_velocity[1],
+            'Velocity Z (km/s)': rotated_velocity[2]
+        })
+
+    planet_df_processed = pd.DataFrame(results)
+    return planet_df_processed
 
 
-def init_satellites():
-    # same as above.
-    ...
+def init_satellites(sat_file, year, month, day, hour, minute, second):
+    # Calculate xyz, Vx Vy Vz for all the satellites
+
+    results = []
+
+    # Get all the positions and velocities of the satellites
+    for index, row in sat_file.iterrows():
+        name = row['Name']
+        line1 = row['Line 1']
+        line2 = row['Line 2']
+
+        satellite = Satrec.twoline2rv(line1, line2)
+
+        # Loop over every day of one month (can change to hours, and can do it over much longer time)
+        # Convert the date into julian date
+        for day in range(0,1):
+            jd, fr = jday(year, month, day, hour, minute, second)
+
+            # Measure the satellite position (r) and velocity (r) at the given date
+            e, r, v = satellite.sgp4(jd, fr)
+
+            if e == 0:
+                results.append({
+                    "Name": name,
+                    "Time": f"{year}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}:{second:02d}",
+                    "Position (km)": list(r),
+                    "Velocity (km/s)": list(v)
+                })
+            else:
+                print(f"Error propagating {name}: Error code {e}")
+
+    columns = ['Name', 'Time', 'Position(km)', 'Velocity(km/s)']
+    rv_df = pd.DataFrame(results)
+
+    rv_df[['Position X (km)', 'Position Y (km)', 'Position Z (km)']] = pd.DataFrame(rv_df['Position (km)'].tolist(), index=rv_df.index)
+    rv_df[['Velocity X (km/s)', 'Velocity Y (km/s)', 'Velocity Z (km/s)']] = pd.DataFrame(rv_df['Velocity (km/s)'].tolist(), index=rv_df.index)
+    rv_df = rv_df.drop(columns=['Position (km)', 'Velocity (km/s)'])
+    return rv_df
+
 
 
 def force(pos_a, pos_b, m_a, m_b):
