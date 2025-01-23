@@ -1,18 +1,5 @@
 import numpy as np
-
-
-def init_solar():
-    # Initialize position(3d), velocity(3d), and mass of celestial bodies not
-    # including satellites. So sun, planets, moons.
-
-    ...
-
-    # return pos, vel, mass
-
-
-def init_satellites():
-    # same as above.
-    ...
+import init
 
 
 def force(pos_a, pos_b, m_a, m_b):
@@ -33,26 +20,6 @@ def pairwise_forces(pos, masses, G=1.0):
 
     net_forces = np.sum(forces, axis=1) * -1
     return net_forces
-
-
-# def accel(pos_a, pos_b, m_a, m_b):
-#     return force(pos_a, pos_b, m_a, m_b) / m_a
-
-
-# def accel_all(idx, pos, mass):
-#     mask = np.ones_like(mass, dtype=bool)
-#     mask[idx] = False
-
-#     pos_B = pos[mask]
-#     m_B = mass[mask]
-
-#     pos_a = pos[idx]
-#     m_a = mass[idx]
-
-#     a = 0.0
-#     for i in range(len(pos_B)):
-#         a += accel(pos_a, pos_B[i], m_a, m_B[i])
-#     return a
 
 
 def verlet_update(pos, vel, masses, dt, G=1.0):
@@ -103,10 +70,6 @@ def twobody_update(pos1, pos2, vel1, vel2, mass1, mass2, dt):
     
     return pos1_next, pos2_next, vel1_next, vel2_next
 
-# used for earth sim
-# is this really needed?
-def twobody_next_pos():
-    ...
 
 def sat_opening(pos_sat, pos_launch, normal_launch):
     # calculates how large the opening is above launch location. We need to
@@ -154,15 +117,15 @@ def sat_opening(pos_sat, pos_launch, normal_launch):
 
     # If there are no satellites, define a maximum radius (maybe based on atmospheric thickness)
     if len(distances) == 0:
-        # Define maximum radius as 100 km 
-        max_radius = 100000  
+        # Define maximum radius as 100 km
+        max_radius = 100000
         return max_radius
 
     # Minimum distance is the largest possible radius without containing any satellite
     min_distance = np.min(distances)
 
     # Define a safety margin
-    safety_margin = 100  
+    safety_margin = 100
 
     # Calculate max_radius by subtracting safety margin from min_distance
     max_radius = min_distance - safety_margin
@@ -171,47 +134,75 @@ def sat_opening(pos_sat, pos_launch, normal_launch):
     max_radius = max(max_radius, 0)
 
     return max_radius
- 
- 
-def vis_earth(current_pos):
-    ...
 
 
-def vis_solar(current_pos):
-    ...
+# def main_solar():
+#     pos, vel, m = init.planets()
+
+#     # time to sim
+#     tts = 100
+#     dt = 0.1
+
+#     pos_next, vel_next = verlet_update(pos, vel, m, dt)
+#     for step in range(tts - 1 // dt):
+#         # vis_solar(pos)
+#         pos, vel = verlet_update(pos_next, vel_next, m, dt)
 
 
-def main_solar():
-    pos, vel, m = init_solar()
+# def main_earth():
+#     pos, vel = init.satellites()
 
-    # time to sim
-    tts = 100
-    dt = 0.1
+#     # time to sim
+#     tts = 100
+#     dt = 0.1
 
-    pos_next, vel_next = verlet_update(pos, vel, m, dt)
-    for step in range(tts - 1 // dt):
-        # vis_solar(pos)
-        pos, vel = verlet_update(pos_next, vel_next, m, dt)
+#     opening_thresh = 10
+#     launcht_candidates = []
 
-
-def main_earth():
-    pos, vel, m = init_satellites()
-
-    # time to sim
-    tts = 100
-    dt = 0.1
-
-    opening_thresh = 10
-    launcht_candidates = []
-
-    for step in range(tts // dt):
-        vis_earth(pos)
-        twobody_update()
-        if opening_thresh <= sat_opening():
-            # snapshot current time and position of satellites and earth
-            # add this to launcht_candidates or somewhere else.
-            ...
+#     for step in range(tts // dt):
+#         vis_earth(pos)
+#         twobody_update()
+#         if opening_thresh <= sat_opening():
+#             # snapshot current time and position of satellites and earth
+#             # add this to launcht_candidates or somewhere else.
+#             ...
 
 
 if __name__ == "__main__":
+    planets_pos, planets_vel, planets_mass = init.planets()
+    sats_pos, sats_vel = init.satellites()
+
+    # Need to set this to whatever our start time is when initialising
+    t0 = 0
+
+    dt = 0.1
+    t_max = t0 + 100
+
+    sat_opening_thresh = 10
+
+    # INIT VISUALISER HERE
+    ...
+
+    # VISUALISE INITIAL POSITIONS HERE
+    ...
+    for t in range(t0, t_max, dt):
+        planets_pos, planets_vel = verlet_update(planets_pos, planets_vel,
+                                                 planets_mass, dt, G=6.674e-11)
+
+        # CALCULATE NEXT POS FOR SATELLITES HERE
+        sats_pos = ...
+
+        # VISUALISE UPDATES POS' HERE
+        ...
+
+        # Checks for a candidate launch time.
+        if sat_opening_thresh < sat_opening():
+            # SAVE THE CURRENT POSITION OF ALL THE PLANETS AND NORMAL VECTOR OF
+            # THE LAUNCH SITE
+            ...
+
+            # EITHER SPAWN A SUBPROCESS THAT SEARCHES FOR A PATH TO JUPITER OR
+            # SAVE THE POS AND NORMAL TO A FILE TO BE PROCESSED LATER
+            ...
+
     ...
