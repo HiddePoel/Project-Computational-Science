@@ -44,6 +44,73 @@ def satellites():
     return pos, vel
 
 
+def myplanets():
+    planet_data = [[57.96, 7.0, 47.4],
+                   [108.26, 3.4, 35.0],
+                   [149.6, 0, 29.8],
+                   [228.0, 1.8, 24.1],
+                   [778.5, 1.3, 13.1],
+                   [1432.0, 2.5, 9.7],
+                   [2867.0, 0.8, 6.8],
+                   [4515.0, 1.8, 5.4]]
+
+    # RA DEC data on 21.01.25 at 00h00
+    ra_dec = [[(19, 20, 19.92), (-23, 27, 34.0)],
+              [(23, 13, 30.71), (-4, 28, 29.0)],
+              [(0, 0, 0.00), (0, 0, 0.0)],
+              [(7, 46, 32.47), (25, 34, 30.5)],
+              [(4, 39, 13.39), (21, 36, 5.4)],
+              [(23, 11, 14.87), (-7, 20, 3.9)],
+              [(3, 22, 28.33), (18, 16, 9.7)],
+              [(23, 52, 13.88), (-2, 13, 51.1)]]
+
+    # 10^24 kg
+    planets_mass = np.array([0.33, 4.87, 5.97, 0.642, 1898.0, 568.0, 86.8, 102.0, 988416.0])
+    planets_pos = np.zeros(shape=(9, 3), dtype=np.float64)
+    planets_vel = np.zeros_like(planets_pos)
+
+    for planet in range(8):
+        ra_h, ra_min, ra_sec = ra_dec[planet][0]
+        dec_h, dec_min, dec_sec = ra_dec[planet][1]
+        distance = planet_data[planet][0]
+
+        ra = np.radians(ra_h * 15 + ra_min * 15 / 60 + ra_sec * 15 / 3600)
+        dec = np.radians((abs(dec_h) + dec_min / 60 + dec_sec / 3600) * (-1 if dec_h < 0 else 1))
+
+        # Calculate Cartesian coordinates
+        planets_pos[planet, :] = np.array([distance * np.cos(dec) * np.cos(ra),
+                                           distance * np.cos(dec) * np.sin(ra),
+                                           distance * np.sin(dec)])
+
+    # Adjust other planets' positions to be relative to the Sun
+    earth_pos = np.array(planets_pos[2])
+    planets_pos -= earth_pos
+    planets_pos[2, :] = earth_pos
+    planets_pos[8, :] += earth_pos
+
+    for planet in range(8):
+        distance = planet_data[planet][0]
+        inclination = np.radians(planet_data[planet][1])
+
+        # Calculate velocity
+        theta = np.arctan2(planets_pos[planet, 1], planets_pos[planet, 0])
+        vel = np.array([-planet_data[planet][2] * np.sin(theta),
+                        planet_data[planet][2] * np.cos(theta),
+                        0])
+
+        # Apply rotation matrix for inclination
+        rotation_matrix = np.array([
+            [1, 0, 0],
+            [0, np.cos(inclination), -np.sin(inclination)],
+            [0, np.sin(inclination), np.cos(inclination)]
+        ])
+
+        planets_pos[planet] = np.dot(rotation_matrix, planets_pos[planet])
+        planets_vel[planet] = np.dot(rotation_matrix, vel)
+
+    return planets_pos, planets_vel, planets_mass
+
+
 def planets():
     planet_data = {
         "MERCURY": {"distance": 57.96, "mass": 0.330, "inclination": 7.0, "orbital velocity": 47.4},
@@ -164,3 +231,7 @@ def planets():
 
     planets_mass[9] = 1988416.0
     return planets_pos, planets_vel, planets_mass
+
+
+if __name__ == "__main__":
+    print(myplanets())
