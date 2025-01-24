@@ -124,10 +124,10 @@ def twobody_update(pos1, pos2, vel1, vel2, mass1, mass2, dt):
     
     return pos1_next, pos2_next, vel1_next, vel2_next
 
-# used for earth sim
-# is this really needed?
-def twobody_next_pos():
-    ...
+
+
+
+
 
 def sat_opening(pos_sat, pos_launch, normal_launch):
     # calculates how large the opening is above launch location. We need to
