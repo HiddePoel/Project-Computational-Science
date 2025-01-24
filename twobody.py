@@ -1,5 +1,34 @@
 import numpy as np
 
+"""
+# used for earth sim
+def twobody_update(pos1, pos2, vel1, vel2, mass1, mass2, dt):
+
+    # Compute gravitational force on body 1 due to body 2
+    F = force(pos1, pos2, mass1, mass2)
+    
+    # Compute accelerations (Newton's third law)
+    a1 = F / mass1
+    a2 = -F / mass2  
+    
+    # Update positions
+    pos1_next = pos1 + vel1 * dt + 0.5 * a1 * dt**2
+    pos2_next = pos2 + vel2 * dt + 0.5 * a2 * dt**2
+    
+    # Compute forces at next positions
+    F_next = force(pos1_next, pos2_next, mass1, mass2)
+    
+    # Compute new accelerations
+    a1_next = F_next / mass1
+    a2_next = -F_next / mass2
+    
+    # Update velocities
+    vel1_next = vel1 + 0.5 * (a1 + a1_next) * dt
+    vel2_next = vel2 + 0.5 * (a2 + a2_next) * dt
+    
+    return pos1_next, pos2_next, vel1_next, vel2_next
+"""
+
 def kepler_solver(M, e, tolerance=1e-6, max_iter=100):
     """
     Solves Kepler's equation for the eccentric anomaly E given mean anomaly M and eccentricity e.
