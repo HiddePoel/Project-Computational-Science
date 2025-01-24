@@ -12,6 +12,36 @@ INIT_MINUTE = 0
 INIT_SECOND = 0
 
 
+def gmst(julian_date):
+    # Calculates greenwich mean sidereal time from julian date
+
+    jd_j2000 = 2451545.0
+    T = (julian_date - jd_j2000) / 36525.0
+
+    gmst_deg = (280.46061837 + 360.98564736629 * (julian_date - jd_j2000) +
+                T**2 * (0.000387933 - T / 38710000.0)) % 360
+
+    return np.radians(gmst_deg)
+
+
+def teme_to_ecef(teme_coords, teme_velocities, julian_date):
+    # Convert coordinates from TEME (True Equator Mean Equinox) to ECEF (Earth-Centered Earth-Fixed).
+
+    GMST_rad = gmst(julian_date)
+
+    rotation_matrix = np.array([
+        [np.cos(GMST_rad), np.sin(GMST_rad), 0],
+        [-np.sin(GMST_rad), np.cos(GMST_rad), 0],
+        [0, 0, 1]
+    ])
+
+    # Transform each satellite's TEME coordinates to ECEF
+    ecef_coords = np.dot(teme_coords, rotation_matrix.T)
+    ecef_velocities = np.dot(teme_velocities, rotation_matrix.T)
+
+    return ecef_coords, ecef_velocities
+
+
 def satellites():
     # Fetch TLE data and transform to SatrecArray
     try:
@@ -41,11 +71,11 @@ def satellites():
     e, pos, vel = satarr.sgp4(jd, fr)
 
     print(pos, vel)
-    return pos, vel
+    return teme_to_ecef(pos, vel, jd)
 
 
 # The planets in the list are in order starting with mercury. The last element
-# of this list is the sun.
+# of this list is the sun. Distance returned in (m), vel in (m/s) and mass in (kg)
 def planets():
     planet_data = [[57.96, 7.0, 47.4],
                    [108.26, 3.4, 35.0],
@@ -110,7 +140,8 @@ def planets():
         planets_pos[planet] = np.dot(rotation_matrix, planets_pos[planet])
         planets_vel[planet] = np.dot(rotation_matrix, vel)
 
-    return planets_pos, planets_vel, planets_mass
+    #      (m)                (m/s)              (kg)
+    return planets_pos * 1e9, planets_vel * 1e3, planets_mass * 1e24
 
 
 def planets_original():
@@ -233,3 +264,8 @@ def planets_original():
 
     planets_mass[9] = 1988416.0
     return planets_pos, planets_vel, planets_mass
+
+
+if __name__ == '__main__':
+    p, v = satellites()
+    print(p, v)
