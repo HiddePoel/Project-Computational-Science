@@ -168,6 +168,20 @@ def sat_opening(pos_sat, pos_launch, normal_launch):
 #             ...
 
 
+def get_launch_site(planets_pos, sats_pos, goes_idx):
+    # For now we will set the launch site right below this geostationary
+    # 'GOES 16' satellite
+    goes_pos = sats_pos[goes_idx]
+    magnitude = np.linalg.norm(goes_pos)
+    unit = goes_pos / magnitude
+    earth_mean_radius = 6371000
+
+    # Relative to center of earth
+    launch_site = unit * earth_mean_radius
+    point_above_site = unit * (earth_mean_radius + 1)
+    return planets_pos[2] + launch_site, planets_pos[2] + point_above_site
+
+
 if __name__ == "__main__":
     planets_pos, planets_vel, planets_mass = init.planets()
     sats_pos, sats_vel, goes_idx = init.satellites()
