@@ -79,9 +79,9 @@ def validate_analytical_update(tle_line1, tle_line2, dt):
     print(f"Velocity difference: {vel_diff:.3f} km/s")
     print("Validation result:")
     if position_check and velocity_check:
-        print("✅ The two_body_analytical_update function matches the real data within tolerance.")
+        print("The two_body_analytical_update function matches the real data within tolerance.")
     else:
-        print("❌ The two_body_analytical_update function does not match the real data within tolerance.")
+        print("The two_body_analytical_update function does not match the real data within tolerance.")
     return position_check and velocity_check
 
 def jday_from_epoch(year, day):
