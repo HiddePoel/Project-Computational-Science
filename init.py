@@ -27,7 +27,7 @@ def gmst(julian_date):
 def teme_to_ecef(teme_coords, teme_velocities, julian_date):
     # Convert coordinates from TEME (True Equator Mean Equinox) to ECEF (Earth-Centered Earth-Fixed).
 
-    GMST_rad = gmst(julian_date)
+    GMST_rad = gmst(julian_date)[0]
 
     rotation_matrix = np.array([
         [np.cos(GMST_rad), np.sin(GMST_rad), 0],
@@ -43,6 +43,13 @@ def teme_to_ecef(teme_coords, teme_velocities, julian_date):
 
 
 def satellites():
+    # This function returns the positions and velocities of all the satellites
+    # around earth on the date at the top of the file. It also return the index
+    # of a geostationary sattelite named 'GOES 16'. This satellite like any
+    # geostationary one is useful to determine where our launch site is. Instead
+    # of keeping track of the rotation of the earth we can refer to the position
+    # of this satellite to determine the normal vector of our launch site.
+
     # Fetch TLE data and transform to SatrecArray
     try:
         response = requests.get(TLE_URL)
@@ -50,6 +57,7 @@ def satellites():
         tle_data = response.text.splitlines()
 
         satellites = []
+        names = []
         for i in range(0, len(tle_data), 3):
             if i + 2 < len(tle_data):
                 name = tle_data[i].strip()
@@ -58,6 +66,7 @@ def satellites():
                 try:
                     satrec = Satrec.twoline2rv(line1, line2)
                     satellites.append(satrec)
+                    names.append(name)
                 except Exception as e:
                     print(f"Error parsing TLE for satellite '{name}': {e}")
     except requests.exceptions.RequestException as e:
@@ -70,8 +79,8 @@ def satellites():
     satarr = SatrecArray(satellites)
     e, pos, vel = satarr.sgp4(jd, fr)
 
-    print(pos, vel)
-    return teme_to_ecef(pos, vel, jd)
+    goes_idx = names.index('GOES 16')
+    return pos, vel, goes_idx
 
 
 # The planets in the list are in order starting with mercury. The last element
@@ -267,5 +276,5 @@ def planets_original():
 
 
 if __name__ == '__main__':
-    p, v = satellites()
-    print(p, v)
+    pos, vel, goes_idx = satellites()
+    print(goes_idx)

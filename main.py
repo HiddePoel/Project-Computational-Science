@@ -170,7 +170,7 @@ def sat_opening(pos_sat, pos_launch, normal_launch):
 
 if __name__ == "__main__":
     planets_pos, planets_vel, planets_mass = init.planets()
-    sats_pos, sats_vel = init.satellites()
+    sats_pos, sats_vel, goes_idx = init.satellites()
 
     # Need to set this to whatever our start time is when initialising
     t0 = 0
