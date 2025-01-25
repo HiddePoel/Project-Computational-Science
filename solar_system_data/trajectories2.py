@@ -30,52 +30,54 @@ def calculate_launch_vector(
     # Outer boundary (limit to prevent runaway searches)
     outer_bound = distance_from_sun(end_planet.data[0]) * 1.1
 
-    vectors = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], [-1, 0, 0], [0, -1, 0], [0, 0, -1]])
-    vectors = vectors / np.linalg.norm(vectors, axis=1)[:, np.newaxis]  # Normalize vectors
-
+    
     success = False
     iteration = 0
     best_vector = None
     closest_distance = np.inf
 
+    days_look_ahead = 1
+
     while not success and iteration < max_iterations:
-        distances = np.zeros((start_planet.data.shape[0], vectors.shape[0]))
-        positions = np.repeat(start_planet.data[0, :3][np.newaxis, :], vectors.shape[0], axis=0)
+        vector = end_planet.data[days_look_ahead, :3]- start_planet.data[0, :3]
+        vector = vector / np.linalg.norm(vector)
+
+        current_closest_distance = np.inf
+
+        position = start_planet.data[0, :3]
 
         for i in range(start_planet.data.shape[0]):
-            positions += vectors * rocket_speed
-            current_distances = distance(positions, end_planet.data[i, :3], axis=1)
-            distances[i] = current_distances
+            position += vector * rocket_speed
+            current_distance = distance(position, end_planet.data[i, :3])
 
-            if np.min(current_distances) < closest_distance:
-                closest_distance = np.min(current_distances)
-                best_vector = vectors[np.argmin(current_distances)]
+            if current_distance < current_closest_distance:
+                current_closest_distance = current_distance
+                if current_closest_distance < closest_distance:
+                    closest_distance = current_distance
+                    best_vector = vector
 
-            if np.any(current_distances < tolerance):
+            if current_distance < tolerance:
                 success = True
                 break
 
-            if np.all(distance_from_sun(positions) > outer_bound):
+            if distance_from_sun(position) > outer_bound:
                 print(f"Outer boundary reached at iteration {iteration}. Closest distance: {closest_distance} km.")
+                print(f"days_look_ahead: {days_look_ahead}")
                 break
 
-            if i % 10000 == 0:
-                pass
-
-        smallest_distances = np.min(distances, axis=0)
-        best_indices = np.argsort(smallest_distances)[:3]
-        vectors = vectors[best_indices]
-        vectors = np.vstack([vectors, np.mean(vectors, axis=0)])
-        vectors = vectors / np.linalg.norm(vectors, axis=1)[:, np.newaxis]  # Normalize vectors
+        if current_closest_distance == closest_distance:
+            days_look_ahead *= 2
+        else:
+            
+            pass
+            # days_look_ahead //= 2
+            # days_look_ahead += (days_look_ahead //2)
 
         iteration += 1
-
-    if success:
-        print(f"Launch vector found in {iteration} iterations with distance {closest_distance} km.")
-    else:
-        print(f"Failed to find a suitable launch vector within {max_iterations} iterations.")
-
+    
     return best_vector
+
+
 
 def distance_from_sun(position, axis=None):
     """Calculate distance from the Sun."""
