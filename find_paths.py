@@ -5,6 +5,7 @@ import numpy as np
 def process_permutation(file_path):
     data = np.load(file_path)
     planets_pos = data['planets_pos']
+    planets_vel = data['planets_vel']
     launch_normal = data['launch_normal']
 
     # PATHFINDING HERE

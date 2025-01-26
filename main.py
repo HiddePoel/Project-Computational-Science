@@ -216,7 +216,9 @@ if __name__ == "__main__":
 
             # Save current permutation to a file
             path = "snapshots/" + str(t) + ".txt"
-            np.savez(path, positions=planets_pos, launch_normal=launch_normal)
+            np.savez(path, planets_pos=planets_pos,
+                     planets_vel=planets_vel,
+                     launch_normal=launch_normal)
 
             # EITHER SPAWN A SUBPROCESS AND FIND A PATH NOW OR PROCESS ALL OF
             # snapshots DIR AFTER.
