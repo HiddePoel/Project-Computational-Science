@@ -120,7 +120,7 @@ if __name__ == "__main__":
     t0 = 0
 
     dt = 100
-    t_max = t0 + 1e4
+    t_max = 1e4
 
     sat_opening_thresh = 10
 
@@ -129,7 +129,7 @@ if __name__ == "__main__":
 
     # VISUALISE INITIAL POSITIONS HERE
     ...
-    for t in range(t0, t_max, dt):
+    for t in range(100):
         planets_pos, planets_vel = verlet_update(planets_pos, planets_vel,
                                                  planets_mass, dt, G=6.674e-11)
 
@@ -138,8 +138,8 @@ if __name__ == "__main__":
             _, _, sats_pos[sat], sats_vel[sat] = two_body_analytical_update(np.array([0.0, 0.0, 0.0]),
                                                                             np.array([0.0, 0.0, 0.0]),
                                                                             planets_mass[2],
-                                                                            sats_pos[sat],
-                                                                            sats_vel[sat],
+                                                                            sats_pos[sat, :],
+                                                                            sats_vel[sat, :],
                                                                             500,
                                                                             dt)
 

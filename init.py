@@ -78,6 +78,9 @@ def satellites():
     fr = np.array([fr])
     satarr = SatrecArray(satellites)
     e, pos, vel = satarr.sgp4(jd, fr)
+    n_sats = len(pos)
+    pos = np.reshape(pos, (n_sats, 3))
+    vel = np.reshape(vel, (n_sats, 3))
 
     goes_idx = names.index('GOES 16')
     return pos, vel, goes_idx
