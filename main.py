@@ -1,6 +1,7 @@
 import numpy as np
 import init
-
+from twob import two_body_analytical_update
+from find_paths import iterate_permutations
 
 def force(pos_a, pos_b, m_a, m_b):
     # G = 6.67408e-11
@@ -29,46 +30,6 @@ def verlet_update(pos, vel, masses, dt, G=1.0):
     vel_next = vel + 0.5 * (acc + acc_next) * dt
 
     return pos_next, vel_next
-
-
-# used for earth sim
-def twobody_update(pos1, pos2, vel1, vel2, mass1, mass2, dt):
-    """
-    Compute the next positions of a two-body system using the Verlet integration method.
-
-    Parameters:
-    - pos1, pos2: Current positions of the two bodies (numpy arrays).
-    - vel1, vel2: Current velocities of the two bodies (numpy arrays).
-    - mass1, mass2: Masses of the two bodies.
-    - dt: Time step.
-
-    Returns:
-    - pos1_next, pos2_next: Updated positions.
-    - vel1_next, vel2_next: Updated velocities.
-    """
-    # Compute gravitational force on body 1 due to body 2
-    F = force(pos1, pos2, mass1, mass2)
-    
-    # Compute accelerations (Newton's third law)
-    a1 = F / mass1
-    a2 = -F / mass2  
-    
-    # Update positions
-    pos1_next = pos1 + vel1 * dt + 0.5 * a1 * dt**2
-    pos2_next = pos2 + vel2 * dt + 0.5 * a2 * dt**2
-    
-    # Compute forces at next positions
-    F_next = force(pos1_next, pos2_next, mass1, mass2)
-    
-    # Compute new accelerations
-    a1_next = F_next / mass1
-    a2_next = -F_next / mass2
-    
-    # Update velocities
-    vel1_next = vel1 + 0.5 * (a1 + a1_next) * dt
-    vel2_next = vel2 + 0.5 * (a2 + a2_next) * dt
-    
-    return pos1_next, pos2_next, vel1_next, vel2_next
 
 
 def sat_opening(pos_sat, pos_launch, normal_launch):
@@ -136,42 +97,10 @@ def sat_opening(pos_sat, pos_launch, normal_launch):
     return max_radius
 
 
-# def main_solar():
-#     pos, vel, m = init.planets()
-
-#     # time to sim
-#     tts = 100
-#     dt = 0.1
-
-#     pos_next, vel_next = verlet_update(pos, vel, m, dt)
-#     for step in range(tts - 1 // dt):
-#         # vis_solar(pos)
-#         pos, vel = verlet_update(pos_next, vel_next, m, dt)
-
-
-# def main_earth():
-#     pos, vel = init.satellites()
-
-#     # time to sim
-#     tts = 100
-#     dt = 0.1
-
-#     opening_thresh = 10
-#     launcht_candidates = []
-
-#     for step in range(tts // dt):
-#         vis_earth(pos)
-#         twobody_update()
-#         if opening_thresh <= sat_opening():
-#             # snapshot current time and position of satellites and earth
-#             # add this to launcht_candidates or somewhere else.
-#             ...
-
-
 def get_launch_site(planets_pos, sats_pos, goes_idx):
     # For now we will set the launch site right below this geostationary
     # 'GOES 16' satellite
-    goes_pos = sats_pos[goes_idx]
+    goes_pos = sats_pos[goes_idx] * 1e3
     magnitude = np.linalg.norm(goes_pos)
     unit = goes_pos / magnitude
     earth_mean_radius = 6371000
@@ -179,18 +108,19 @@ def get_launch_site(planets_pos, sats_pos, goes_idx):
     # Relative to center of earth
     launch_site = unit * earth_mean_radius
     point_above_site = unit * (earth_mean_radius + 1)
-    return planets_pos[2] + launch_site, planets_pos[2] + point_above_site
+    return launch_site, point_above_site
 
 
 if __name__ == "__main__":
     planets_pos, planets_vel, planets_mass = init.planets()
     sats_pos, sats_vel, goes_idx = init.satellites()
+    n_sats = len(sats_pos)
 
     # Need to set this to whatever our start time is when initialising
     t0 = 0
 
-    dt = 0.1
-    t_max = t0 + 100
+    dt = 100
+    t_max = t0 + 1e4
 
     sat_opening_thresh = 10
 
@@ -204,24 +134,27 @@ if __name__ == "__main__":
                                                  planets_mass, dt, G=6.674e-11)
 
         # CALCULATE NEXT POS FOR SATELLITES HERE
-        sats_pos = ...
+        for sat in range(n_sats):
+            _, _, sats_pos[sat], sats_vel[sat] = two_body_analytical_update(np.array([0.0, 0.0, 0.0]),
+                                                                            np.array([0.0, 0.0, 0.0]),
+                                                                            planets_mass[2],
+                                                                            sats_pos[sat],
+                                                                            sats_vel[sat],
+                                                                            500,
+                                                                            dt)
 
         # VISUALISE UPDATES POS' HERE
         ...
 
+        pos_launch, point_above = get_launch_site(planets_pos, sats_pos, goes_idx)
+        launch_normal = point_above - pos_launch
         # Checks for a candidate launch time.
-        if sat_opening_thresh < sat_opening():
-            # GET THE LAUNCH NORMAL VECTOR HERE
-            launch_normal = ...
+        if sat_opening_thresh < sat_opening(sats_pos, pos_launch, launch_normal):
 
             # Save current permutation to a file
             path = "snapshots/" + str(t) + ".txt"
             np.savez(path, planets_pos=planets_pos,
                      planets_vel=planets_vel,
-                     launch_normal=launch_normal)
+                     launch_normal=launch_normal + planets_pos[2])
 
-            # EITHER SPAWN A SUBPROCESS AND FIND A PATH NOW OR PROCESS ALL OF
-            # snapshots DIR AFTER.
-            ...
-
-    ...
+    iterate_permutations()
