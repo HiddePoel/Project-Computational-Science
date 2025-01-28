@@ -1,5 +1,5 @@
 import numpy as np
-import Planet
+import projectComputationalScience.solar_system_data.Bodies as Bodies
 
 def calculate_launch_vector(
     start="Earth", end="Jupiter", rocket_speed_km_s=100, tolerance_km=500, max_iterations=100000
@@ -19,8 +19,8 @@ def calculate_launch_vector(
     """
 
     # Load planet data
-    start_planet = Planet.Planet(start)
-    end_planet = Planet.Planet(end)
+    start_planet = Bodies.Planet(start)
+    end_planet = Bodies.Planet(end)
 
     rocket_speed_km_h = rocket_speed_km_s * 3600  # Convert to km/h
     rocket_speed = rocket_speed_km_h * 24  # Convert to km/day

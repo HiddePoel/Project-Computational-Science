@@ -1,6 +1,6 @@
 import pygame
 import numpy as np
-import Planet
+import projectComputationalScience.solar_system_data.Bodies as Bodies
 import trajectories
 
 # Initialize Pygame
@@ -18,7 +18,7 @@ pygame.display.set_caption("Solar System Visualization")
 
 planet_names = ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
 planet_names = planet_names[:5]  # Limit to inner planets for better visibility
-planets = {name: Planet.Planet(name) for name in planet_names}
+planets = {name: Bodies.Planet(name) for name in planet_names}
 
 # Calculate maximum distance from the Sun to any planet
 max_distance = 0
