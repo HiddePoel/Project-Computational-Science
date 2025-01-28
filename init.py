@@ -77,7 +77,18 @@ def satellites():
     jd = np.array([jd])
     fr = np.array([fr])
     satarr = SatrecArray(satellites)
+
     e, pos, vel = satarr.sgp4(jd, fr)
+    valid_sats = e.flatten() == 0
+    pos = pos[valid_sats]
+    vel = vel[valid_sats]
+    valid_names = np.array(names)[valid_sats]
+    try:
+        goes_idx = np.where(valid_names == 'GOES 16')[0][0]
+    except IndexError:
+        print("Error: 'GOES 16' satellite not found in the filtered list.")
+        goes_idx = None
+
     n_sats = len(pos)
     pos = np.reshape(pos, (n_sats, 3))
     vel = np.reshape(vel, (n_sats, 3))

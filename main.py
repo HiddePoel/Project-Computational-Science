@@ -2,6 +2,7 @@ import numpy as np
 import init
 from twob import two_body_analytical_update
 from find_paths import iterate_permutations
+from concurrent.futures import ThreadPoolExecutor
 
 def force(pos_a, pos_b, m_a, m_b):
     # G = 6.67408e-11
@@ -16,7 +17,9 @@ def pairwise_forces(pos, masses, G=1.0):
     diff = pos[:, np.newaxis, :] - pos[np.newaxis, :, :]
     distances = np.linalg.norm(diff, axis=-1)
     distances_inv3 = np.where(distances > 0, distances**-3, 0)
-
+    # print("FORCES")
+    # print(distances_inv3)
+    # print("FORCES END")
     forces = G * diff * (distances_inv3[:, :, np.newaxis] * (masses[:, np.newaxis] * masses[np.newaxis, :])[:, :, np.newaxis])
 
     net_forces = np.sum(forces, axis=1) * -1
@@ -32,7 +35,7 @@ def verlet_update(pos, vel, masses, dt, G=1.0):
     return pos_next, vel_next
 
 
-def sat_opening(pos_sat, pos_launch, normal_launch):
+def sat_opening(pos_sat, pos_launch, normal_launch, goes_idx):
     # calculates how large the opening is above launch location. We need to
     # somehow keep track of earth's orientation idk how. we can start with
     # the math to actually calculate the opening first
@@ -75,6 +78,7 @@ def sat_opening(pos_sat, pos_launch, normal_launch):
 
     # Compute perpendicular distances from satellites to the launch axis
     distances = np.linalg.norm(cross_prod, axis=1)  # Shape: (N,)
+    distances[goes_idx] = 10000
 
     # If there are no satellites, define a maximum radius (maybe based on atmospheric thickness)
     if len(distances) == 0:
@@ -84,17 +88,9 @@ def sat_opening(pos_sat, pos_launch, normal_launch):
 
     # Minimum distance is the largest possible radius without containing any satellite
     min_distance = np.min(distances)
+    print(min_distance)
 
-    # Define a safety margin
-    safety_margin = 100
-
-    # Calculate max_radius by subtracting safety margin from min_distance
-    max_radius = min_distance - safety_margin
-
-    # Ensure the radius is non-negative
-    max_radius = max(max_radius, 0)
-
-    return max_radius
+    return min_distance
 
 
 def get_launch_site(planets_pos, sats_pos, goes_idx):
@@ -111,6 +107,20 @@ def get_launch_site(planets_pos, sats_pos, goes_idx):
     return launch_site, point_above_site
 
 
+def update_satellite(sat, sats_pos, sats_vel, planets_mass, dt):
+    """Function to calculate the next position and velocity of a satellite."""
+    _, _, new_pos, new_vel = two_body_analytical_update(
+        np.array([0.0, 0.0, 0.0]),
+        np.array([0.0, 0.0, 0.0]),
+        planets_mass[2],
+        sats_pos[sat, :],
+        sats_vel[sat, :],
+        500,
+        dt
+    )
+    return sat, new_pos, new_vel
+
+
 if __name__ == "__main__":
     planets_pos, planets_vel, planets_mass = init.planets()
     sats_pos, sats_vel, goes_idx = init.satellites()
@@ -119,22 +129,23 @@ if __name__ == "__main__":
     # Need to set this to whatever our start time is when initialising
     t0 = 0
 
-    dt = 100
-    t_max = 1e4
+    # (seconds)
+    dt = 10000
 
-    sat_opening_thresh = 10
+    # (km)
+    sat_opening_thresh = 60
 
     # INIT VISUALISER HERE
     ...
-
     # VISUALISE INITIAL POSITIONS HERE
     ...
-    for t in range(100):
+    for step in range(10):
         planets_pos, planets_vel = verlet_update(planets_pos, planets_vel,
                                                  planets_mass, dt, G=6.674e-11)
 
         # CALCULATE NEXT POS FOR SATELLITES HERE
         for sat in range(n_sats):
+            # print(sats_pos[sat], sats_vel[sat])
             _, _, sats_pos[sat], sats_vel[sat] = two_body_analytical_update(np.array([0.0, 0.0, 0.0]),
                                                                             np.array([0.0, 0.0, 0.0]),
                                                                             planets_mass[2],
@@ -143,16 +154,31 @@ if __name__ == "__main__":
                                                                             500,
                                                                             dt)
 
+        # Test Multithreading
+        # with ThreadPoolExecutor() as executor:
+        #     # Launch multithreaded computation for all satellites
+        #     futures = [
+        #         executor.submit(update_satellite, sat, sats_pos, sats_vel, planets_mass, dt)
+        #         for sat in range(n_sats)
+        #     ]
+
+        #     # Collect the results
+        #     for future in futures:
+        #         sat, new_pos, new_vel = future.result()
+        #         sats_pos[sat] = new_pos
+        #         sats_vel[sat] = new_vel
+
         # VISUALISE UPDATES POS' HERE
         ...
 
         pos_launch, point_above = get_launch_site(planets_pos, sats_pos, goes_idx)
         launch_normal = point_above - pos_launch
-        # Checks for a candidate launch time.
-        if sat_opening_thresh < sat_opening(sats_pos, pos_launch, launch_normal):
 
+        # Checks for a candidate launch time.
+        opening = sat_opening(sats_pos, pos_launch, launch_normal, goes_idx)
+        if sat_opening_thresh < opening:
             # Save current permutation to a file
-            path = "snapshots/" + str(t) + ".txt"
+            path = "snapshots/" + str(step) + ".txt"
             np.savez(path, planets_pos=planets_pos,
                      planets_vel=planets_vel,
                      launch_normal=launch_normal + planets_pos[2])
