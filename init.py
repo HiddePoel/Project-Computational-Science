@@ -42,13 +42,17 @@ def teme_to_ecef(teme_coords, teme_velocities, julian_date):
     return ecef_coords, ecef_velocities
 
 
-def satellites():
+def satellites(noDownload=False):
     # This function returns the positions and velocities of all the satellites
     # around earth on the date at the top of the file. It also return the index
     # of a geostationary sattelite named 'GOES 16'. This satellite like any
     # geostationary one is useful to determine where our launch site is. Instead
     # of keeping track of the rotation of the earth we can refer to the position
     # of this satellite to determine the normal vector of our launch site.
+
+    if noDownload:
+        data = np.load("satellites.npz")
+        return data["pos"], data["vel"], data["goes_idx"]
 
     # Fetch TLE data and transform to SatrecArray
     try:
@@ -94,6 +98,7 @@ def satellites():
     vel = np.reshape(vel, (n_sats, 3))
 
     goes_idx = names.index('GOES 16')
+    np.savez("satellites.npz", pos=pos, vel=vel, goes_idx=goes_idx)
     return pos, vel, goes_idx
 
 

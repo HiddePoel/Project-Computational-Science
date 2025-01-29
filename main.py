@@ -2,7 +2,7 @@ import numpy as np
 import init
 from twob import two_body_analytical_update
 from find_paths import iterate_permutations
-from concurrent.futures import ThreadPoolExecutor
+from numba import njit, jit
 
 def force(pos_a, pos_b, m_a, m_b):
     # G = 6.67408e-11
@@ -80,11 +80,11 @@ def sat_opening(pos_sat, pos_launch, normal_launch, goes_idx):
     distances = np.linalg.norm(cross_prod, axis=1)  # Shape: (N,)
     distances[goes_idx] = 10000
 
-    # If there are no satellites, define a maximum radius (maybe based on atmospheric thickness)
-    if len(distances) == 0:
-        # Define maximum radius as 100 km
-        max_radius = 100000
-        return max_radius
+    # # If there are no satellites, define a maximum radius (maybe based on atmospheric thickness)
+    # if len(distances) == 0:
+    #     # Define maximum radius as 100 km
+    #     max_radius = 100000
+    #     return max_radius
 
     # Minimum distance is the largest possible radius without containing any satellite
     min_distance = np.min(distances)
@@ -107,23 +107,24 @@ def get_launch_site(planets_pos, sats_pos, goes_idx):
     return launch_site, point_above_site
 
 
-def update_satellite(sat, sats_pos, sats_vel, planets_mass, dt):
-    """Function to calculate the next position and velocity of a satellite."""
-    _, _, new_pos, new_vel = two_body_analytical_update(
-        np.array([0.0, 0.0, 0.0]),
-        np.array([0.0, 0.0, 0.0]),
-        planets_mass[2],
-        sats_pos[sat, :],
-        sats_vel[sat, :],
-        500,
-        dt
-    )
-    return sat, new_pos, new_vel
+def update_satellite(sats_pos, sats_vel, planets_mass, dt):
+    new_pos = np.zeros_like(sats_pos)
+    new_vel = np.zeros_like(sats_vel)
+    for sat in range(len(sats_pos)):
+        _, _, new_pos[sat], new_vel[sat] = two_body_analytical_update(np.array([0.0, 0.0, 0.0]),
+                                                                      np.array([0.0, 0.0, 0.0]),
+                                                                      planets_mass[2],
+                                                                      sats_pos[sat, :],
+                                                                      sats_vel[sat, :],
+                                                                      500,
+                                                                      dt)
+
+    return new_pos, new_vel
 
 
 if __name__ == "__main__":
     planets_pos, planets_vel, planets_mass = init.planets()
-    sats_pos, sats_vel, goes_idx = init.satellites()
+    sats_pos, sats_vel, goes_idx = init.satellites(noDownload=True)
     n_sats = len(sats_pos)
 
     # Need to set this to whatever our start time is when initialising
@@ -144,15 +145,18 @@ if __name__ == "__main__":
                                                  planets_mass, dt, G=6.674e-11)
 
         # CALCULATE NEXT POS FOR SATELLITES HERE
-        for sat in range(n_sats):
-            # print(sats_pos[sat], sats_vel[sat])
-            _, _, sats_pos[sat], sats_vel[sat] = two_body_analytical_update(np.array([0.0, 0.0, 0.0]),
-                                                                            np.array([0.0, 0.0, 0.0]),
-                                                                            planets_mass[2],
-                                                                            sats_pos[sat, :],
-                                                                            sats_vel[sat, :],
-                                                                            500,
-                                                                            dt)
+        # @njit(parallel=True)
+        # for sat in range(n_sats):
+        #     # print(sats_pos[sat], sats_vel[sat])
+        #     _, _, sats_pos[sat], sats_vel[sat] = two_body_analytical_update(np.array([0.0, 0.0, 0.0]),
+        #                                                                     np.array([0.0, 0.0, 0.0]),
+        #                                                                     planets_mass[2],
+        #                                                                     sats_pos[sat, :],
+        #                                                                     sats_vel[sat, :],
+        #                                                                     500,
+        #                                                                     dt)
+
+        sats_pos, sats_vel = update_satellite(sats_pos, sats_vel, planets_mass, dt)
 
         # Test Multithreading
         # with ThreadPoolExecutor() as executor:
@@ -176,6 +180,7 @@ if __name__ == "__main__":
 
         # Checks for a candidate launch time.
         opening = sat_opening(sats_pos, pos_launch, launch_normal, goes_idx)
+        print(pos_launch, point_above, opening)
         if sat_opening_thresh < opening:
             # Save current permutation to a file
             path = "snapshots/" + str(step) + ".txt"
