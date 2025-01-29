@@ -236,3 +236,85 @@ def test_path(file_path):
             break
 
     return 
+
+
+
+
+def is_facing_Jupiter(earth_pos, jupiter_pos, closest_planet_pos):
+    """
+    Check if the angle between Earth-Jupiter vector and Earth-closest planet vector is <= 45 degrees.
+    
+    Parameters:
+        earth_pos (np.ndarray): Position vector of Earth in km.
+        jupiter_pos (np.ndarray): Position vector of Jupiter in km.
+        closest_planet_pos (np.ndarray): Position vector of the closest planet in km.
+        
+    Returns:
+        bool: True if angle <= 45 degrees, else False.
+    """
+    vector_ej = jupiter_pos - earth_pos
+    vector_ec = closest_planet_pos - earth_pos
+    angle = calculate_angle(vector_ej, vector_ec)
+    return angle <= 45.0
+
+def calculate_angle(vector1, vector2):
+    """
+    Calculate the angle in degrees between two vectors.
+    
+    Parameters:
+        vector1 (np.ndarray): First vector.
+        vector2 (np.ndarray): Second vector.
+        
+    Returns:
+        float: Angle in degrees.
+    """
+    unit_v1 = vector1 / np.linalg.norm(vector1)
+    unit_v2 = vector2 / np.linalg.norm(vector2)
+    dot_product = np.dot(unit_v1, unit_v2)
+    # Clamp the dot product to avoid numerical errors
+    dot_product = np.clip(dot_product, -1.0, 1.0)
+    angle_rad = np.arccos(dot_product)
+    angle_deg = np.degrees(angle_rad)
+    return angle_deg
+
+def find_closest_planet_between(earth_pos, jupiter_pos, planets_pos):
+    """
+    Find the closest planet to Earth between Earth and Jupiter.
+    
+    Parameters:
+        earth_pos (np.ndarray): Position vector of Earth in km.
+        jupiter_pos (np.ndarray): Position vector of Jupiter in km.
+        planets_pos (dict): Dictionary of planet positions with planet names as keys.
+        
+    Returns:
+        str or None: Name of the closest planet or None if no such planet exists.
+    """
+    # Calculate vector from Earth to Jupiter
+    vector_ej = jupiter_pos - earth_pos
+    distance_ej = np.linalg.norm(vector_ej)
+    
+    # Identify planets between Earth and Jupiter based on orbital distance
+    planets_between = {}
+    for planet, pos in planets_pos.items():
+        if planet.upper() in ['EARTH', 'JUPITER']:
+            continue  # Skip Earth and Jupiter
+        distance = np.linalg.norm(pos)
+        earth_distance = np.linalg.norm(earth_pos)
+        jupiter_distance = np.linalg.norm(jupiter_pos)
+        if earth_distance < distance < jupiter_distance:
+            planets_between[planet] = distance
+    
+    if not planets_between:
+        return None  # No planets between Earth and Jupiter
+    
+    # Find the planet with the minimum distance to Earth
+    closest_planet = None
+    min_distance = np.inf
+    for planet, distance in planets_between.items():
+        planet_vector = planets_pos[planet] - earth_pos
+        distance_to_earth = np.linalg.norm(planet_vector)
+        if distance_to_earth < min_distance:
+            min_distance = distance_to_earth
+            closest_planet = planet
+    
+    return closest_planet
