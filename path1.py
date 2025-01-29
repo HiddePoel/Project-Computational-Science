@@ -1,8 +1,23 @@
-import numpy as np
-import pandas as pd
-import math
+file_path = '1.txt.npz'
 
-# Function to calculate Hohmann transfer orbit
+data = np.load(file_path)
+# List the keys in the .npz file
+#print("Keys in the .npz file:", data.keys())
+
+# Access individual arrays by key
+for key in data.keys():
+    print(f"{key}: {data[key]}")
+
+planets_mass = np.array([0.33, 4.87, 5.97, 0.642, 1898.0, 568.0, 86.8, 102.0, 988416.0])
+
+def convert_to_radius(planet_pos, planet1_idx):
+    # Return radius (in meters)
+    r1 = np.linalg.norm(planets_pos[planet1_idx])
+    return r1 / 1000
+
+def calculate_mu(planet_mass, G):
+    # Calculate mu constant for Hohmann assits (in m/s)
+    return (planet_mass * G)/ 10**3
 
 def hohmann_transfer(r1, r2, mu):
     """Calculate Hohmann transfer orbit from one planet to the next.
@@ -47,21 +62,21 @@ def gravitational_assist(mu_planet, v_in_spacecraft, v_planet, r_closest):
     v_in_magnitude = np.linalg.norm(v_in_planet)
 
     deflection_angle = 2 * math.asin(1 / (1 + (r_closest * v_in_magnitude**2) / mu_planet))
-    a_transfer = (r_closest + r_planet) / 2
 
     # Outgoing velocity in the planet's frame (same magnitude, rotated by deflection angle)
-    v_out_planet = np.array([
-        v_in_planet[0] * math.cos(deflection_angle) - v_in_planet[1] * math.sin(deflection_angle),
-        v_in_planet[0] * math.sin(deflection_angle) + v_in_planet[1] * math.cos(deflection_angle),
-        0
+    rotation_matrix = np.array([
+        [math.cos(deflection_angle), -math.sin(deflection_angle), 0],
+        [math.sin(deflection_angle), math.cos(deflection_angle), 0],
+        [0, 0, 1]
     ])
+
+    v_out_planet = np.dot(rotation_matrix, v_in_planet)
 
     # Convert back to Sun's reference frame
     v_out_sun = v_out_planet + v_planet
 
-    return deflection_angle, v_out_s
+    return deflection_angle, v_out_sun
 
-# Calculate whether the rocket at time t is facing a planet
 def launch_facing_planet(launch_pos, planet_pos, normal_launch):
     """Check whether the launch site is facing any planets.
     Inputs:
@@ -69,7 +84,7 @@ def launch_facing_planet(launch_pos, planet_pos, normal_launch):
         planet_pos = position of the planet it could be facing
         normal_launch =
     """
-    
+
     # Calculate the vector from the launch site to Jupiter
     vector_to_jupiter = planet_pos - launch_pos
 
@@ -103,79 +118,121 @@ def is_trajectory_to_jupiter(r_post_assist, v_out, r_jupiter, tolerance):
 
     return distance_to_jupiter < tolerance
 
+def test_path(file_path):
+    data = np.load(file_path)
+    planets_pos = data['planets_pos']
+    planets_vel = data['planets_vel']
+    launch_normal = data['launch_normal']
 
-# given all the input:
-planets_pos, planets_vel, planets_mass = init.planets()
-sats_pos, sats_vel, goes_idx = init.satellites()
+    planets_mass = np.array([0.33, 4.87, 5.97, 0.642, 1898.0, 568.0, 86.8, 102.0, 988416.0])
 
-# Need to set this to whatever our start time is when initialising
-t0 = 0
+    # Initialize everything
+    t0 = 0
+    dt = 0.1
+    t_max = t0 + 100
+    sat_pos = launch_normal
+    G = 6.674 * 10**-11
 
-dt = 0.1
-t_max = t0 + 100
+    # Calculate all the mu of the planets
+    mu_planets = []
+    for mass in planets_mass:
+        mass_planet = mass * 10**24
+        mu_planet = calculate_mu(mass_planet, G)
+        mu_planets.append(mu_planet)
 
-sat_opening_thresh = 10
+    # Calcualte all the radii of the planets
+    r_planets = []
+    for planet_idx, _ in enumerate(planets_pos):  # Use planet_idx to get the index of each planet
+        r_planet = convert_to_radius(planets_pos, planet1_idx=planet_idx)
+        r_planets.append(r_planet)
 
-mu_sun = 1.87e3 #(sun graviational param idk what it is)
-mu_earth = 3.98e4 # earth graviational param -- CHECK IT
-    # INIT VISUALISER HERE
-...
+    # Check which planet the launch site is facing
+    # Iterate over time steps
 
-    # VISUALISE INITIAL POSITIONS HERE
-    ...
-for t in range(t0, t_max, dt):
-    planets_pos, planets_vel = verlet_update(planets_pos, planets_vel, planets_mass, dt, G=6.674e-11)
+        # Iterate over all planets
+    for i, planet_pos in enumerate(planets_pos):
+        # Get the corresponding velocity for the current planet
+        planet_vel = planets_vel[i]
 
-    # CALCULATE NEXT POS FOR SATELLITES HERE
-    sats_pos = ...
-
-        # VISUALISE UPDATES POS' HERE
-    ...
-
-        # Checks for a candidate launch time.
-    if sat_opening_thresh < sat_opening():
-            # GET THE LAUNCH NORMAL VECTOR HERE
-        launch_normal = ...
-
-
-    for planet in planets_pos:
         # Check if the launch site is facing the planet
-        if launch_facing_planet(goes_pos, planets_pos[planet], launch_normal):
-            # Calculate the Hohmann transfer path
-            planet1 = planets_pos['EARTH']
-            planet2 = planets_pos[planet]
+        if launch_facing_planet(sat_pos, planet_pos, launch_normal):
+            path1 = hohmann_transfer(sat_pos, planet_pos, mu_planets[8])
+            print1 = print('Doing hohmann transfer to:', i)
 
-            path1 = hohmann_transfer(planet1, planet2, mu)
+            # Calculate the gravitational parameter (mu) for the planet
+            mu_planet = calculate_mu(planets_mass[i], G)
+            # Escape velocity calculation from Earth
+            v_earth_escape = np.sqrt(2 * mu_planet / np.linalg.norm(planet_pos))
 
-            # Initialize spacecraft position and velocity
-            spacecraft_pos = planet1
+            # Semi-major axis of the transfer orbit
+            a_orbit_transfer = (np.linalg.norm(planet_pos) + np.linalg.norm(planets_pos[i])) / 2
+            v_orbital = np.sqrt(mu_planets[8] * (2 / np.linalg.norm(planet_pos) - 1 / a_orbit_transfer))
 
-            # Calculate initial velocity needed for the spaceship to go to the first planet of the Hohmann transfer
-            v_earth_escape = np.sqrt(2 * mu_earth / r_earth)
-            a_orbit_transfer = (r_earth, planet_pos[planet]['Distance'])/2
-            v_orbital = np.sqrt(mu_sun * (2/r_earth - 1/a_orbit_transfer))
-
+            # Calculate the initial velocity of the spacecraft
             initial_velocity = v_earth_escape + v_orbital
 
-            # Check if the planet is not Jupiter before performing a gravitational assist
-            if planet != 'JUPITER':
-                v_planet = planet_pos[planet]['Velocity']
-                for r_closest in range(1, 101):
-                    # Measure the new angle of trajectory and velocity of the planet post-assist
-                    deflection_angle, v_out = gravitational_assist(mu_assist, initial_velocity, v_planet, r_closest)
-                    r_post_assist = r_planet + r_closest * np.array([1, 0, 0])
+            # Gravitational assist (if not Jupiter, assuming index 3 is Jupiter)
+            if i != 4:  # Skip Jupiter for gravitational assist
+                v_planet = planet_vel
+                print3 = print('v in:', initial_velocity)
+
+                for r_closest in range(-100, 10):  # Calculate closest approach range
+                    deflection_angle, v_out = gravitational_assist(mu_planet, initial_velocity, planet_vel, r_closest)
+                    r_post_assist = planet_pos + r_closest * np.array([1, 0, 0])  # Update spacecraft position after assist
                     spacecraft_vel = v_out
+                    print('deflection angle:', deflection_angle)
 
-                    # Compute graviational acceleration due to gravity assist
-                    for _ in range(100):
-                        accel_gravity = np.zeros(3)
-                        for second_planet in planets_pos:
-                            distance_planet_spacecraft = r_post_assist - planet_pos[second_planet]
-                            gravity_accel -= G * planets_mass[other_planet] * distance_planet_spacecraft / (np.linalg.norm(distance_planet_spacecraft)**3)
+                # Update spacecraft velocity and position using gravitational influences
+                    for j, second_planet_pos in enumerate(planets_pos):
+                        distance_planet_spacecraft = r_post_assist - second_planet_pos
+                        gravity_accel = -G * planets_mass[j] * distance_planet_spacecraft / (np.linalg.norm(distance_planet_spacecraft)**3)
 
-                        # Update spacecraft velocity and position
+                        # Update velocity and position iteratively
                         spacecraft_vel += gravity_accel * dt
-                        spacecraft_pos += spacecraft_vel * dt
+                        sat_pos += spacecraft_vel * dt
 
-                    if is_trajectory_to_jupiter(r_post_assist, v_out, planet_pos['JUPITER'], tolerance=1e6):
-                        post_assist_path = hohmann_transfer(planet, planet_pos['JUPITER'], mu)
+                        #print('v out:', spacecraft_vel)
+                    # Check if the trajectory leads towards Jupiter (you need to define `is_trajectory_to_jupiter`)
+                    if is_trajectory_to_jupiter(r_post_assist, v_out, planets_pos[4], tolerance=1e9):
+                        post_assist_path = hohmann_transfer(planet_pos, planets_pos[4], mu_sun)
+                        print('post assist from:', planet_pos)
+                        break
+                    else:
+                        print('there is no trajectory to jupiter from here')
+                        closest_planet_idx = None
+                        min_distance = float('inf')
+
+                        for k, next_planet_pos in enumerate(planets_pos):
+                             if k != 4:  # Skip Jupiter (index 4)
+                                distance_to_jupiter = np.linalg.norm(planets_pos[4] - next_planet_pos)
+                                if distance_to_jupiter < min_distance:
+                                    min_distance = distance_to_jupiter
+                                    closest_planet_idx = k
+                    # Perform gravitational assist with the closest planet
+                        if closest_planet_idx is not None:
+                            closest_planet_pos = planets_pos[closest_planet_idx]
+                            closest_planet_vel = planets_vel[closest_planet_idx]
+
+                            print(f"Gravitational assist from planet {closest_planet_idx}, closest to Jupiter.")
+
+                            # Perform assist and update trajectory
+                            deflection_angle, v_new = gravitational_assist(mu_planets[closest_planet_idx], v_out, closest_planet_vel, r_closest=100)
+                            r_post_assist = closest_planet_pos + 100 * np.array([1, 0, 0])  # Update spacecraft position after assist
+                            v_out = v_new
+
+                            if is_trajectory_to_jupiter(r_post_assist, v_out, planets_pos[4], tolerance=1e6):
+                                print(f"Trajectory heading to Jupiter after assist from planet {closest_planet_idx}!")
+                                break
+                        else:
+                            print("No planet found to assist. Trying Hohmann transfer to a planet closer to Jupiter.")
+                            # Example: Perform a Hohmann transfer to Mars (index 2) to adjust the path
+                            transfer_path = hohmann_transfer(r_post_assist, planets_pos[2], mu_sun)
+                            print("Hohmann transfer initiated to adjust trajectory.")
+
+                            # Update spacecraft position and velocity after Hohmann transfer
+                            r_post_assist, v_out = transfer_path[0], transfer_path[1]
+
+
+            break
+
+    return 
