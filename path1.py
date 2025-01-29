@@ -1,16 +1,54 @@
-file_path = '1.txt.npz'
+#file_path = '1.txt.npz'
 
-data = np.load(file_path)
+#data = np.load(file_path)
 # List the keys in the .npz file
 #print("Keys in the .npz file:", data.keys())
 
 # Access individual arrays by key
-for key in data.keys():
-    print(f"{key}: {data[key]}")
+#for key in data.keys():
+    #print(f"{key}: {data[key]}")
+import numpy as np
+import pandas as pd
+import math
+import os
 
-planets_mass = np.array([0.33, 4.87, 5.97, 0.642, 1898.0, 568.0, 86.8, 102.0, 988416.0])
+def find_closest_planet_between(earth_pos, jupiter_pos, planets_pos):
+    """
+    Find the closest planet to Earth between Earth and Jupiter.
 
-def convert_to_radius(planet_pos, planet1_idx):
+    Parameters:
+        earth_pos (np.ndarray): Position vector of Earth in km.
+        jupiter_pos (np.ndarray): Position vector of Jupiter in km.
+        planets_pos (dict): Dictionary of planet positions with planet names as keys.
+
+    Returns:
+        str or None: Name of the closest planet or None if no such planet exists.
+    """
+    # Calculate vector from Earth to Jupiter
+    # Calculate vector from Earth to Jupiter
+    vector_ej = jupiter_pos - earth_pos
+
+    # Identify planets between Earth and Jupiter based on orbital distance
+    planets_between = {}
+    for i, pos in enumerate(planets_pos):
+        if i in [2, 4]:  # Skip Earth (index 2) and Jupiter (index 4)
+            continue
+        distance_from_sun = np.linalg.norm(pos)
+        earth_distance = np.linalg.norm(earth_pos)
+        jupiter_distance = np.linalg.norm(jupiter_pos)
+
+        if earth_distance < distance_from_sun < jupiter_distance:
+            planets_between[i] = distance_from_sun
+
+    if not planets_between:
+        return None  # No planets between Earth and Jupiter
+
+    # Find the planet closest to Earth
+    closest_planet_idx = min(planets_between, key=planets_between.get)
+
+    return closest_planet_idx
+
+def convert_to_radius(planets_pos, planet1_idx):
     # Return radius (in meters)
     r1 = np.linalg.norm(planets_pos[planet1_idx])
     return r1 / 1000
@@ -117,6 +155,43 @@ def is_trajectory_to_jupiter(r_post_assist, v_out, r_jupiter, tolerance):
     distance_to_jupiter = np.linalg.norm(closest_point - r_jupiter)
 
     return distance_to_jupiter < tolerance
+    
+def is_facing_jupiter(earth_pos, jupiter_pos, closest_planet_pos):
+    """
+    Check if the angle between Earth-Jupiter vector and Earth-closest planet vector is <= 45 degrees.
+
+    Parameters:
+        earth_pos (np.ndarray): Position vector of Earth in km.
+        jupiter_pos (np.ndarray): Position vector of Jupiter in km.
+        closest_planet_pos (np.ndarray): Position vector of the closest planet in km.
+
+    Returns:
+        bool: True if angle <= 45 degrees, else False.
+    """
+    vector_ej = jupiter_pos - earth_pos
+    vector_ec = closest_planet_pos - earth_pos
+    angle = calculate_angle(vector_ej, vector_ec)
+    return angle <= 45.0
+
+def calculate_angle(vector1, vector2):
+    """
+    Calculate the angle in degrees between two vectors.
+
+    Parameters:
+        vector1 (np.ndarray): First vector.
+        vector2 (np.ndarray): Second vector.
+
+    Returns:
+        float: Angle in degrees.
+    """
+    unit_v1 = vector1 / np.linalg.norm(vector1)
+    unit_v2 = vector2 / np.linalg.norm(vector2)
+    dot_product = np.dot(unit_v1, unit_v2)
+    # Clamp the dot product to avoid numerical errors
+    dot_product = np.clip(dot_product, -1.0, 1.0)
+    angle_rad = np.arccos(dot_product)
+    angle_deg = np.degrees(angle_rad)
+    return angle_deg
 
 def process_permutation(file_path):
     data = np.load(file_path)
@@ -136,7 +211,7 @@ def process_permutation(file_path):
     # Calculate all the mu of the planets
     mu_planets = []
     for mass in planets_mass:
-        mass_planet = mass * 10**24
+        mass_planet = mass * 10**22
         mu_planet = calculate_mu(mass_planet, G)
         mu_planets.append(mu_planet)
 
@@ -163,20 +238,22 @@ def process_permutation(file_path):
 
         # Calculate the initial velocity of the spacecraft and the planet
         initial_velocity = v_earth_escape + v_orbital
+        print('Initial velocity:', initial_velocity)
         v_planet = planets_vel[closest_planet]
 
         # Perform gravitational assist to Jupiter from the closet planet
         # Initialize r_closest and step size
-        r_closest = 0  # Initial closest approach distance
-        step = 1  # Step size for adjusting r_closest
-        max_attempts = 10  # Prevent infinite loop
+        r_closest = 10e2  # Initial closest approach distance (in m)
+        step = 10e4 # Step size for adjusting r_closest
+        max_attempts = 1000  # Prevent infinite loop
         attempts = 0
 
         while attempts < max_attempts:
             deflection_angle, v_out = gravitational_assist(mu_planet, initial_velocity, planets_vel, r_closest)
-            r_post_assist = planets_pos[closest_planet] + r_closest * np.array([1, 0, 0])  # Update spacecraft position
+            r_post_assist = planets_pos[closest_planet] + r_closest * np.array([1, 0, 0])
             spacecraft_vel = v_out[closest_planet]
             print(f"Attempt {attempts + 1}: r_closest = {r_closest}, Deflection Angle = {deflection_angle}")
+            print('Mu planet:', mu_planet)
 
             if is_trajectory_to_jupiter(r_post_assist, spacecraft_vel, r_planets[4], tolerance=1e6):
                 print(f"Optimal r_closest found: {r_closest}")
