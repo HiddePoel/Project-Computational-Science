@@ -1,16 +1,54 @@
-file_path = '1.txt.npz'
+#file_path = '1.txt.npz'
 
-data = np.load(file_path)
+#data = np.load(file_path)
 # List the keys in the .npz file
 #print("Keys in the .npz file:", data.keys())
 
 # Access individual arrays by key
-for key in data.keys():
-    print(f"{key}: {data[key]}")
+#for key in data.keys():
+    #print(f"{key}: {data[key]}")
+import numpy as np
+import pandas as pd
+import math
+import os
 
-planets_mass = np.array([0.33, 4.87, 5.97, 0.642, 1898.0, 568.0, 86.8, 102.0, 988416.0])
+def find_closest_planet_between(earth_pos, jupiter_pos, planets_pos):
+    """
+    Find the closest planet to Earth between Earth and Jupiter.
 
-def convert_to_radius(planet_pos, planet1_idx):
+    Parameters:
+        earth_pos (np.ndarray): Position vector of Earth in km.
+        jupiter_pos (np.ndarray): Position vector of Jupiter in km.
+        planets_pos (dict): Dictionary of planet positions with planet names as keys.
+
+    Returns:
+        str or None: Name of the closest planet or None if no such planet exists.
+    """
+    # Calculate vector from Earth to Jupiter
+    # Calculate vector from Earth to Jupiter
+    vector_ej = jupiter_pos - earth_pos
+
+    # Identify planets between Earth and Jupiter based on orbital distance
+    planets_between = {}
+    for i, pos in enumerate(planets_pos):
+        if i in [2, 4]:  # Skip Earth (index 2) and Jupiter (index 4)
+            continue
+        distance_from_sun = np.linalg.norm(pos)
+        earth_distance = np.linalg.norm(earth_pos)
+        jupiter_distance = np.linalg.norm(jupiter_pos)
+
+        if earth_distance < distance_from_sun < jupiter_distance:
+            planets_between[i] = distance_from_sun
+
+    if not planets_between:
+        return None  # No planets between Earth and Jupiter
+
+    # Find the planet closest to Earth
+    closest_planet_idx = min(planets_between, key=planets_between.get)
+
+    return closest_planet_idx
+
+def convert_to_radius(planets_pos, planet1_idx):
     # Return radius (in meters)
     r1 = np.linalg.norm(planets_pos[planet1_idx])
     return r1 / 1000
@@ -117,8 +155,45 @@ def is_trajectory_to_jupiter(r_post_assist, v_out, r_jupiter, tolerance):
     distance_to_jupiter = np.linalg.norm(closest_point - r_jupiter)
 
     return distance_to_jupiter < tolerance
+    
+def is_facing_jupiter(earth_pos, jupiter_pos, closest_planet_pos):
+    """
+    Check if the angle between Earth-Jupiter vector and Earth-closest planet vector is <= 45 degrees.
 
-def test_path(file_path):
+    Parameters:
+        earth_pos (np.ndarray): Position vector of Earth in km.
+        jupiter_pos (np.ndarray): Position vector of Jupiter in km.
+        closest_planet_pos (np.ndarray): Position vector of the closest planet in km.
+
+    Returns:
+        bool: True if angle <= 45 degrees, else False.
+    """
+    vector_ej = jupiter_pos - earth_pos
+    vector_ec = closest_planet_pos - earth_pos
+    angle = calculate_angle(vector_ej, vector_ec)
+    return angle <= 45.0
+
+def calculate_angle(vector1, vector2):
+    """
+    Calculate the angle in degrees between two vectors.
+
+    Parameters:
+        vector1 (np.ndarray): First vector.
+        vector2 (np.ndarray): Second vector.
+
+    Returns:
+        float: Angle in degrees.
+    """
+    unit_v1 = vector1 / np.linalg.norm(vector1)
+    unit_v2 = vector2 / np.linalg.norm(vector2)
+    dot_product = np.dot(unit_v1, unit_v2)
+    # Clamp the dot product to avoid numerical errors
+    dot_product = np.clip(dot_product, -1.0, 1.0)
+    angle_rad = np.arccos(dot_product)
+    angle_deg = np.degrees(angle_rad)
+    return angle_deg
+
+def process_permutation(file_path):
     data = np.load(file_path)
     planets_pos = data['planets_pos']
     planets_vel = data['planets_vel']
@@ -136,7 +211,7 @@ def test_path(file_path):
     # Calculate all the mu of the planets
     mu_planets = []
     for mass in planets_mass:
-        mass_planet = mass * 10**24
+        mass_planet = mass * 10**22
         mu_planet = calculate_mu(mass_planet, G)
         mu_planets.append(mu_planet)
 
@@ -146,93 +221,68 @@ def test_path(file_path):
         r_planet = convert_to_radius(planets_pos, planet1_idx=planet_idx)
         r_planets.append(r_planet)
 
-    # Check which planet the launch site is facing
-    # Iterate over time steps
+    # Chekc which planet is closest between Earth and Jupiter
+    closest_planet = find_closest_planet_between(planets_pos[2], planets_pos[4], planets_pos)
 
-        # Iterate over all planets
-    for i, planet_pos in enumerate(planets_pos):
-        # Get the corresponding velocity for the current planet
-        planet_vel = planets_vel[i]
+    # Check whether the angle between the planet and Jupiter is less than 45 degrees
+    if is_facing_jupiter(planets_pos[2], planets_pos[4], planets_pos[closest_planet]):
+        # If planet is in the path to jupiter, perform hohmann transfer
+        first_hohmann = hohmann_transfer(r_planets[2], r_planets[closest_planet], mu_planets[8])
+        print('Doing hohmann transfer to planet', closest_planet)
 
-        # Check if the launch site is facing the planet
-        if launch_facing_planet(sat_pos, planet_pos, launch_normal):
-            path1 = hohmann_transfer(sat_pos, planet_pos, mu_planets[8])
-            print1 = print('Doing hohmann transfer to:', i)
+        # Calculate escape velocity to assist planet
+        v_earth_escape = np.sqrt(2 * mu_planets[closest_planet] / np.linalg.norm(planets_pos))
+        # Semi-major axis of the transfer orbit
+        a_orbit_transfer = (np.linalg.norm(planets_pos) + np.linalg.norm(planets_pos[closest_planet])) / 2
+        v_orbital = np.sqrt(mu_planets[8] * (2 / np.linalg.norm(planets_pos) - 1 / a_orbit_transfer))
 
-            # Calculate the gravitational parameter (mu) for the planet
-            mu_planet = calculate_mu(planets_mass[i], G)
-            # Escape velocity calculation from Earth
-            v_earth_escape = np.sqrt(2 * mu_planet / np.linalg.norm(planet_pos))
+        # Calculate the initial velocity of the spacecraft and the planet
+        initial_velocity = v_earth_escape + v_orbital
+        print('Initial velocity:', initial_velocity)
+        v_planet = planets_vel[closest_planet]
 
-            # Semi-major axis of the transfer orbit
-            a_orbit_transfer = (np.linalg.norm(planet_pos) + np.linalg.norm(planets_pos[i])) / 2
-            v_orbital = np.sqrt(mu_planets[8] * (2 / np.linalg.norm(planet_pos) - 1 / a_orbit_transfer))
+        # Perform gravitational assist to Jupiter from the closet planet
+        # Initialize r_closest and step size
+        r_closest = 10e2  # Initial closest approach distance (in m)
+        step = 10e4 # Step size for adjusting r_closest
+        max_attempts = 1000  # Prevent infinite loop
+        attempts = 0
 
-            # Calculate the initial velocity of the spacecraft
-            initial_velocity = v_earth_escape + v_orbital
+        while attempts < max_attempts:
+            deflection_angle, v_out = gravitational_assist(mu_planet, initial_velocity, planets_vel, r_closest)
+            r_post_assist = planets_pos[closest_planet] + r_closest * np.array([1, 0, 0])
+            spacecraft_vel = v_out[closest_planet]
+            print(f"Attempt {attempts + 1}: r_closest = {r_closest}, Deflection Angle = {deflection_angle}")
+            print('Mu planet:', mu_planet)
 
-            # Gravitational assist (if not Jupiter, assuming index 3 is Jupiter)
-            if i != 4:  # Skip Jupiter for gravitational assist
-                v_planet = planet_vel
-                print3 = print('v in:', initial_velocity)
+            if is_trajectory_to_jupiter(r_post_assist, spacecraft_vel, r_planets[4], tolerance=1e6):
+                print(f"Optimal r_closest found: {r_closest}")
+                print(f"Trajectory heading to Jupiter after assist from planet {closest_planet_idx}!")
+                break  # Stop loop if we found a good trajectory
 
-                for r_closest in range(-100, 10):  # Calculate closest approach range
-                    deflection_angle, v_out = gravitational_assist(mu_planet, initial_velocity, planet_vel, r_closest)
-                    r_post_assist = planet_pos + r_closest * np.array([1, 0, 0])  # Update spacecraft position after assist
-                    spacecraft_vel = v_out
-                    print('deflection angle:', deflection_angle)
+            # Adjust r_closest based on results
+            r_closest += step
+            attempts += 1
 
-                # Update spacecraft velocity and position using gravitational influences
-                    for j, second_planet_pos in enumerate(planets_pos):
-                        distance_planet_spacecraft = r_post_assist - second_planet_pos
-                        gravity_accel = -G * planets_mass[j] * distance_planet_spacecraft / (np.linalg.norm(distance_planet_spacecraft)**3)
+        else:
+            print("No suitable r_closest found within the max attempts. Consider adjusting parameters.")
 
-                        # Update velocity and position iteratively
-                        spacecraft_vel += gravity_accel * dt
-                        sat_pos += spacecraft_vel * dt
+    else:
+        print('Cannot use planet', closest_planet, 'for gravitational assist')
 
-                        #print('v out:', spacecraft_vel)
-                    # Check if the trajectory leads towards Jupiter (you need to define `is_trajectory_to_jupiter`)
-                    if is_trajectory_to_jupiter(r_post_assist, v_out, planets_pos[4], tolerance=1e9):
-                        post_assist_path = hohmann_transfer(planet_pos, planets_pos[4], mu_sun)
-                        print('post assist from:', planet_pos)
-                        break
-                    else:
-                        print('there is no trajectory to jupiter from here')
-                        closest_planet_idx = None
-                        min_distance = float('inf')
+    return
 
-                        for k, next_planet_pos in enumerate(planets_pos):
-                             if k != 4:  # Skip Jupiter (index 4)
-                                distance_to_jupiter = np.linalg.norm(planets_pos[4] - next_planet_pos)
-                                if distance_to_jupiter < min_distance:
-                                    min_distance = distance_to_jupiter
-                                    closest_planet_idx = k
-                    # Perform gravitational assist with the closest planet
-                        if closest_planet_idx is not None:
-                            closest_planet_pos = planets_pos[closest_planet_idx]
-                            closest_planet_vel = planets_vel[closest_planet_idx]
+def iterate_permutations():
+    dirpath = "snapshots"
 
-                            print(f"Gravitational assist from planet {closest_planet_idx}, closest to Jupiter.")
+    if not os.path.exists(dirpath):
+        print(f"Directory '{dirpath}' does not exist.")
+        return
 
-                            # Perform assist and update trajectory
-                            deflection_angle, v_new = gravitational_assist(mu_planets[closest_planet_idx], v_out, closest_planet_vel, r_closest=100)
-                            r_post_assist = closest_planet_pos + 100 * np.array([1, 0, 0])  # Update spacecraft position after assist
-                            v_out = v_new
-
-                            if is_trajectory_to_jupiter(r_post_assist, v_out, planets_pos[4], tolerance=1e6):
-                                print(f"Trajectory heading to Jupiter after assist from planet {closest_planet_idx}!")
-                                break
-                        else:
-                            print("No planet found to assist. Trying Hohmann transfer to a planet closer to Jupiter.")
-                            # Example: Perform a Hohmann transfer to Mars (index 2) to adjust the path
-                            transfer_path = hohmann_transfer(r_post_assist, planets_pos[2], mu_sun)
-                            print("Hohmann transfer initiated to adjust trajectory.")
-
-                            # Update spacecraft position and velocity after Hohmann transfer
-                            r_post_assist, v_out = transfer_path[0], transfer_path[1]
+    for permpath in os.listdir(dirpath):
+        permutation = os.path.join(dirpath, permpath)
+        process_permutation(permutation)
 
 
-            break
-
-    return 
+if __name__ == "__main__":
+    iterate_permutations()
