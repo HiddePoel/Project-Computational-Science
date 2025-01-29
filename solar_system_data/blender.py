@@ -35,13 +35,25 @@ def run():
             bpy.data.objects.remove(obj, do_unlink=True)
 
     # Set viewport and render background to black
-    bpy.data.worlds["World"].node_tree.nodes["Background"].inputs[0].default_value = (0, 0, 0, 1)  # Black
+    bpy.data.worlds["World"].node_tree.nodes["Background"].inputs[0].default_value = (
+        0,
+        0,
+        0,
+        1,
+    )  # Black
 
     # Create and animate celestial bodies
     for body in bodies:
         # Create a sphere for the celestial body
-        bpy.ops.mesh.primitive_uv_sphere_add(radius=body.radius / radius_scale, location=(0, 0, 0))
+        bpy.ops.mesh.primitive_uv_sphere_add(
+            radius=body.radius / radius_scale, location=(0, 0, 0), segments=64, ring_count=32
+        )
         sphere = bpy.context.object
+
+        if body.name.lower() == "earth":
+            add_texture(sphere, f"{blend_dir}/textures/earth.jpg")
+        # add_texture(sphere, f"{blend_dir}/textures/{body.name.lower()}.jpg")
+
         body.blender_object = sphere
         sphere.name = body.name
 
@@ -61,7 +73,7 @@ def run():
                     break
 
     # Add light to the Sun
-    bpy.ops.object.light_add(type='POINT', location=(0, 0, 0))
+    bpy.ops.object.light_add(type="POINT", location=(0, 0, 0))
     sun_light = bpy.context.object
     sun_light.name = "Sun_Light"
     sun_light.data.energy = 1000  # Adjust intensity
@@ -81,10 +93,28 @@ def run():
     scene.render.ffmpeg.audio_codec = "AAC"
 
     to_render = False
-    
+
     if to_render:
         # Trigger rendering
         bpy.ops.render.render(animation=True)
+
+
+def add_texture(sphere, texture_path):
+    """Adds an image texture to a sphere in Blender."""
+    mat = bpy.data.materials.new(name=f"{sphere.name}_Material")
+    mat.use_nodes = True  # Enable Shader Nodes
+
+    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+    tex_image = mat.node_tree.nodes.new("ShaderNodeTexImage")
+
+    # Load the texture image
+    tex_image.image = bpy.data.images.load(texture_path)
+
+    # Link the texture to the BSDF shader
+    mat.node_tree.links.new(bsdf.inputs["Base Color"], tex_image.outputs["Color"])
+
+    # Assign material to sphere
+    sphere.data.materials.append(mat)
 
 
 if __name__ == "__main__":
