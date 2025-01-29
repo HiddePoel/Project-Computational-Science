@@ -131,16 +131,16 @@ if __name__ == "__main__":
     t0 = 0
 
     # (seconds)
-    dt = 10000
+    dt = 100
 
     # (km)
-    sat_opening_thresh = 60
+    sat_opening_thresh = 150
 
     # INIT VISUALISER HERE
     ...
     # VISUALISE INITIAL POSITIONS HERE
     ...
-    for step in range(10):
+    for step in range(50):
         planets_pos, planets_vel = verlet_update(planets_pos, planets_vel,
                                                  planets_mass, dt, G=6.674e-11)
 
