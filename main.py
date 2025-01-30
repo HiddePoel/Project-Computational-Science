@@ -1,164 +1,8 @@
 import numpy as np
-import pandas as pd
-
-# Open and read the data files
-planet_path = 'planet_data.txt'
-satellite_path = 'tle_active.txt'
-
-with open(satellite_path, 'r') as satellite_file:
-    lines = satellite_file.readlines()
-
-# Read test tle file and organize into name, line1 and line2
-sat_table = []
-
-for i in range(0, len(lines), 3):
-    name = lines[i].strip()
-    line_1 = lines[i+1].strip()
-    line_2 = lines[i+2].strip()
-
-    sat_table.append([name, line_1, line_2])
-
-columns = ['Name', 'Line 1', 'Line 2']
-satellite_df = pd.DataFrame(sat_table, columns=columns)
-
-# Read planet data into df
-plan_table = []
-current_data = {}
-with open(planet_path, 'r') as planet_file:
-    for line in planet_file:
-        line = line.strip()
-        # An empty line means the end of data of one planet
-        if not line:
-            if current_data:
-                plan_table.append(current_data)
-                current_data = {}
-        else:
-            key, value = line.split(':',1)
-            current_data[key.strip()] = value.strip()
-    if current_data:
-        plan_table.append(current_data)
-
-planet_df = pd.DataFrame(plan_table)
-
-
-def init_solar(solar_file):
-    initial_coord = {}
-    results = []
-
-    for _, row in solar_file.iterrows():
-        # Separate info in RA and DEC (hour, minutes, seconds)
-        ra_parts = row['RA'].split()
-        dec_parts = row['DEC'].split()
-
-        # Convert RA and DEC to floats and then degrees
-        ra_h, ra_min, ra_sec = map(float, ra_parts)
-        dec_h, dec_min, dec_sec = map(float, dec_parts)
-        distance = float(row['Distance'])  
-
-        ra_deg = ra_h * 15 + ra_min * 15 / 60 + ra_sec * 15 / 3600
-        dec_deg = (abs(dec_h) + dec_min / 60 + dec_sec / 3600) * (-1 if dec_h < 0 else 1)
-
-        # Convert degrees to radians
-        ra_rad = np.radians(ra_deg)
-        dec_rad = np.radians(dec_deg)
-
-        # Calculate Cartesian coordinates
-        x = distance * np.cos(dec_rad) * np.cos(ra_rad)
-        y = distance * np.cos(dec_rad) * np.sin(ra_rad)
-        z = distance * np.sin(dec_rad)
-
-        # Store initial coordinates
-        initial_coord[row['Planet']] = {'x': x, 'y': y, 'z': z}
-
-    # Adjust coordinates to be relative to Earth
-    earth_position = initial_coord.get('EARTH', {'x': 0, 'y': 0, 'z': 0})
-    for planet, coords in initial_coord.items():
-        if planet != 'EARTH':
-            initial_coord[planet]['x'] -= earth_position['x']
-            initial_coord[planet]['y'] -= earth_position['y']
-            initial_coord[planet]['z'] -= earth_position['z']
-
-    # Calculate orbital velocity and inclination adjustments
-    for _, row in solar_file.iterrows():
-        planet = row['Planet']
-        distance = float(row['Distance'])
-        inclination = np.radians(float(row['Inclination']))
-        orb_vel = float(row['Orbital Velocity'])
-
-        # Get the initial coordinates
-        coords = initial_coord.get(planet, {'x': 0, 'y': 0, 'z': 0})
-        x, y, z = coords['x'], coords['y'], coords['z']
-
-        # Apply rotation matrix for inclination
-        rotation_matrix = np.array([
-            [1, 0, 0],
-            [0, np.cos(inclination), -np.sin(inclination)],
-            [0, np.sin(inclination), np.cos(inclination)]
-        ])
-        rotated_coords = np.dot(rotation_matrix, np.array([x, y, z]))
-
-        # Calculate velocity
-        theta = np.arctan2(y, x)
-        v_x = -orb_vel * np.sin(theta)
-        v_y = orb_vel * np.cos(theta)
-        v_z = 0
-        velocity = np.array([v_x, v_y, v_z])
-        rotated_velocity = np.dot(rotation_matrix, velocity)
-
-        results.append({
-            'Planet': planet,
-            'Position X (kme6)': rotated_coords[0],
-            'Position Y (kme6)': rotated_coords[1],
-            'Position Z (kme6)': rotated_coords[2],
-            'Velocity X (km/s)': rotated_velocity[0],
-            'Velocity Y (km/s)': rotated_velocity[1],
-            'Velocity Z (km/s)': rotated_velocity[2]
-        })
-
-    planet_df_processed = pd.DataFrame(results)
-    return planet_df_processed
-
-
-def init_satellites(sat_file, year, month, day, hour, minute, second):
-    # Calculate xyz, Vx Vy Vz for all the satellites
-
-    results = []
-
-    # Get all the positions and velocities of the satellites
-    for index, row in sat_file.iterrows():
-        name = row['Name']
-        line1 = row['Line 1']
-        line2 = row['Line 2']
-
-        satellite = Satrec.twoline2rv(line1, line2)
-
-        # Loop over every day of one month (can change to hours, and can do it over much longer time)
-        # Convert the date into julian date
-        for day in range(0,1):
-            jd, fr = jday(year, month, day, hour, minute, second)
-
-            # Measure the satellite position (r) and velocity (r) at the given date
-            e, r, v = satellite.sgp4(jd, fr)
-
-            if e == 0:
-                results.append({
-                    "Name": name,
-                    "Time": f"{year}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}:{second:02d}",
-                    "Position (km)": list(r),
-                    "Velocity (km/s)": list(v)
-                })
-            else:
-                print(f"Error propagating {name}: Error code {e}")
-
-    columns = ['Name', 'Time', 'Position(km)', 'Velocity(km/s)']
-    rv_df = pd.DataFrame(results)
-
-    rv_df[['Position X (km)', 'Position Y (km)', 'Position Z (km)']] = pd.DataFrame(rv_df['Position (km)'].tolist(), index=rv_df.index)
-    rv_df[['Velocity X (km/s)', 'Velocity Y (km/s)', 'Velocity Z (km/s)']] = pd.DataFrame(rv_df['Velocity (km/s)'].tolist(), index=rv_df.index)
-    rv_df = rv_df.drop(columns=['Position (km)', 'Velocity (km/s)'])
-    return rv_df
-
-
+import init
+from twob import two_body_analytical_update
+from find_paths import iterate_permutations
+from concurrent.futures import ThreadPoolExecutor
 
 def force(pos_a, pos_b, m_a, m_b):
     # G = 6.67408e-11
@@ -173,31 +17,13 @@ def pairwise_forces(pos, masses, G=1.0):
     diff = pos[:, np.newaxis, :] - pos[np.newaxis, :, :]
     distances = np.linalg.norm(diff, axis=-1)
     distances_inv3 = np.where(distances > 0, distances**-3, 0)
-
+    # print("FORCES")
+    # print(distances_inv3)
+    # print("FORCES END")
     forces = G * diff * (distances_inv3[:, :, np.newaxis] * (masses[:, np.newaxis] * masses[np.newaxis, :])[:, :, np.newaxis])
 
     net_forces = np.sum(forces, axis=1) * -1
     return net_forces
-
-
-# def accel(pos_a, pos_b, m_a, m_b):
-#     return force(pos_a, pos_b, m_a, m_b) / m_a
-
-
-# def accel_all(idx, pos, mass):
-#     mask = np.ones_like(mass, dtype=bool)
-#     mask[idx] = False
-
-#     pos_B = pos[mask]
-#     m_B = mass[mask]
-
-#     pos_a = pos[idx]
-#     m_a = mass[idx]
-
-#     a = 0.0
-#     for i in range(len(pos_B)):
-#         a += accel(pos_a, pos_B[i], m_a, m_B[i])
-#     return a
 
 
 def verlet_update(pos, vel, masses, dt, G=1.0):
@@ -209,10 +35,7 @@ def verlet_update(pos, vel, masses, dt, G=1.0):
     return pos_next, vel_next
 
 
-
-
-
-def sat_opening(pos_sat, pos_launch, normal_launch):
+def sat_opening(pos_sat, pos_launch, normal_launch, goes_idx):
     # calculates how large the opening is above launch location. We need to
     # somehow keep track of earth's orientation idk how. we can start with
     # the math to actually calculate the opening first
@@ -255,67 +78,109 @@ def sat_opening(pos_sat, pos_launch, normal_launch):
 
     # Compute perpendicular distances from satellites to the launch axis
     distances = np.linalg.norm(cross_prod, axis=1)  # Shape: (N,)
+    distances[goes_idx] = 10000
 
     # If there are no satellites, define a maximum radius (maybe based on atmospheric thickness)
     if len(distances) == 0:
-        # Define maximum radius as 100 km 
-        max_radius = 100000  
+        # Define maximum radius as 100 km
+        max_radius = 100000
         return max_radius
 
     # Minimum distance is the largest possible radius without containing any satellite
     min_distance = np.min(distances)
+    print(min_distance)
 
-    # Define a safety margin
-    safety_margin = 100  
-
-    # Calculate max_radius by subtracting safety margin from min_distance
-    max_radius = min_distance - safety_margin
-
-    # Ensure the radius is non-negative
-    max_radius = max(max_radius, 0)
-
-    return max_radius
- 
- 
-def vis_earth(current_pos):
-    ...
+    return min_distance
 
 
-def vis_solar(current_pos):
-    ...
+def get_launch_site(planets_pos, sats_pos, goes_idx):
+    # For now we will set the launch site right below this geostationary
+    # 'GOES 16' satellite
+    goes_pos = sats_pos[goes_idx] * 1e3
+    magnitude = np.linalg.norm(goes_pos)
+    unit = goes_pos / magnitude
+    earth_mean_radius = 6371000
+
+    # Relative to center of earth
+    launch_site = unit * earth_mean_radius
+    point_above_site = unit * (earth_mean_radius + 1)
+    return launch_site, point_above_site
 
 
-def main_solar():
-    pos, vel, m = init_solar()
-
-    # time to sim
-    tts = 100
-    dt = 0.1
-
-    pos_next, vel_next = verlet_update(pos, vel, m, dt)
-    for step in range(tts - 1 // dt):
-        # vis_solar(pos)
-        pos, vel = verlet_update(pos_next, vel_next, m, dt)
-
-
-def main_earth():
-    pos, vel, m = init_satellites()
-
-    # time to sim
-    tts = 100
-    dt = 0.1
-
-    opening_thresh = 10
-    launcht_candidates = []
-
-    for step in range(tts // dt):
-        vis_earth(pos)
-        twobody_update()
-        if opening_thresh <= sat_opening():
-            # snapshot current time and position of satellites and earth
-            # add this to launcht_candidates or somewhere else.
-            ...
+def update_satellite(sat, sats_pos, sats_vel, planets_mass, dt):
+    """Function to calculate the next position and velocity of a satellite."""
+    _, _, new_pos, new_vel = two_body_analytical_update(
+        np.array([0.0, 0.0, 0.0]),
+        np.array([0.0, 0.0, 0.0]),
+        planets_mass[2],
+        sats_pos[sat, :],
+        sats_vel[sat, :],
+        500,
+        dt
+    )
+    return sat, new_pos, new_vel
 
 
 if __name__ == "__main__":
+    planets_pos, planets_vel, planets_mass = init.planets()
+    sats_pos, sats_vel, goes_idx = init.satellites()
+    n_sats = len(sats_pos)
+
+    # Need to set this to whatever our start time is when initialising
+    t0 = 0
+
+    # (seconds)
+    dt = 10000
+
+    # (km)
+    sat_opening_thresh = 60
+
+    # INIT VISUALISER HERE
     ...
+    # VISUALISE INITIAL POSITIONS HERE
+    ...
+    for step in range(10):
+        planets_pos, planets_vel = verlet_update(planets_pos, planets_vel,
+                                                 planets_mass, dt, G=6.674e-11)
+
+        # CALCULATE NEXT POS FOR SATELLITES HERE
+        for sat in range(n_sats):
+            # print(sats_pos[sat], sats_vel[sat])
+            _, _, sats_pos[sat], sats_vel[sat] = two_body_analytical_update(np.array([0.0, 0.0, 0.0]),
+                                                                            np.array([0.0, 0.0, 0.0]),
+                                                                            planets_mass[2],
+                                                                            sats_pos[sat, :],
+                                                                            sats_vel[sat, :],
+                                                                            500,
+                                                                            dt)
+
+        # Test Multithreading
+        # with ThreadPoolExecutor() as executor:
+        #     # Launch multithreaded computation for all satellites
+        #     futures = [
+        #         executor.submit(update_satellite, sat, sats_pos, sats_vel, planets_mass, dt)
+        #         for sat in range(n_sats)
+        #     ]
+
+        #     # Collect the results
+        #     for future in futures:
+        #         sat, new_pos, new_vel = future.result()
+        #         sats_pos[sat] = new_pos
+        #         sats_vel[sat] = new_vel
+
+        # VISUALISE UPDATES POS' HERE
+        ...
+
+        pos_launch, point_above = get_launch_site(planets_pos, sats_pos, goes_idx)
+        launch_normal = point_above - pos_launch
+
+        # Checks for a candidate launch time.
+        opening = sat_opening(sats_pos, pos_launch, launch_normal, goes_idx)
+        if sat_opening_thresh < opening:
+            # Save current permutation to a file
+            path = "snapshots/" + str(step) + ".txt"
+            np.savez(path, planets_pos=planets_pos,
+                     planets_vel=planets_vel,
+                     launch_normal=launch_normal + planets_pos[2])
+
+    iterate_permutations()
