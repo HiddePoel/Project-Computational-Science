@@ -1,0 +1,29 @@
+from astropy import units as u
+from astropy.time import Time
+from astropy.coordinates import solar_system_ephemeris
+
+solar_system_ephemeris.set("jpl")
+
+import numpy as np
+
+from poliastro.bodies import Sun, Earth, Jupiter
+from poliastro.ephem import Ephem
+from poliastro.frames import Planes
+from poliastro.maneuver import Maneuver
+from poliastro.plotting import StaticOrbitPlotter
+from poliastro.twobody import Orbit
+from poliastro.util import norm, time_range
+
+
+
+
+## Main dates
+date_launch = Time("2011-08-05 16:25", scale="utc").tdb
+date_flyby = Time("2013-10-09 19:21", scale="utc").tdb
+date_arrival = Time("2016-07-05 03:18", scale="utc").tdb
+
+# Atlas V supplied a launch energy
+C_3 = 31.1 * u.km**2 / u.s**2
+
+# Plot initial Earth's position
+Earth.plot(date_launch, label="Initial Earth's position")
