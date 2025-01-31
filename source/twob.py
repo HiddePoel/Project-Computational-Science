@@ -1,4 +1,5 @@
 # This file contains the analytical solution for the two-body problem
+# It updates the positions and velocities of two bodies in a Keplerian orbit
 
 import numpy as np
 
