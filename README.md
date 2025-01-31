@@ -16,5 +16,6 @@ deactivate
 
 To run the code (TODO):
 ```bash
+cd source
 python3.10 main.py
 ```
