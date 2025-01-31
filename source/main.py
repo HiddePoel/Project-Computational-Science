@@ -35,7 +35,7 @@ if __name__ == "__main__":
                                                  planets_mass, dt, G=6.674e-11)
 
         # TODO optimisation
-        sats_pos, sats_vel = satellites.update(sats_pos, sats_vel, planets_mass, dt)
+        sats_pos, sats_vel = satellites.update_optimized(sats_pos, sats_vel, dt)
 
         # Test Multithreading
         # with ThreadPoolExecutor() as executor:

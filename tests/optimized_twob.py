@@ -85,7 +85,7 @@ def twobo(pos2, vel2, mass2, dt):
     return pos2_next, vel2_next
 
 
-def kepler_solver_multi(M, e, tol=1e-12, max_iter=100):
+def kepler_solver_vectorized(M, e, tol=1e-12, max_iter=100):
     E = M  # Initial guess
     for _ in range(max_iter):
         dE = (E - e * np.sin(E) - M) / (1 - e * np.cos(E))
@@ -95,11 +95,11 @@ def kepler_solver_multi(M, e, tol=1e-12, max_iter=100):
     return E
 
 
-def rotation_matrix_multi(Omega, i, omega):
+def rotation_matrix_vectorized(Omega, i, omega):
     cos_O, sin_O = np.cos(Omega).squeeze(), np.sin(Omega).squeeze()
     cos_i, sin_i = np.cos(i).squeeze(), np.sin(i).squeeze()
     cos_w, sin_w = np.cos(omega).squeeze(), np.sin(omega).squeeze()
-    
+
     R = np.empty((Omega.shape[0], 3, 3))
     R[:, 0, 0] = cos_O * cos_w - sin_O * sin_w * cos_i
     R[:, 0, 1] = -cos_O * sin_w - sin_O * cos_w * cos_i
@@ -110,11 +110,12 @@ def rotation_matrix_multi(Omega, i, omega):
     R[:, 2, 0] = sin_w * sin_i
     R[:, 2, 1] = cos_w * sin_i
     R[:, 2, 2] = cos_i
-    
+
     return R
 
 
-def twobo_multi(pos2, vel2, dt):
+def twobo_vectorized(pos2, vel2, dt):
+    # Had this returned accurate values, it would have seen about a 10x speedup according to tests.
     r0_inv = 1 / np.linalg.norm(pos2, axis=1, keepdims=True)
 
     h_vec = np.cross(pos2, vel2)
@@ -143,13 +144,13 @@ def twobo_multi(pos2, vel2, dt):
     M0 = E0 - e * np.sin(E0)
     n_mean = np.sqrt(MU / a**3)
     M = M0 + n_mean * dt
-    E = kepler_solver_multi(M, e)
+    E = kepler_solver_vectorized(M, e)
 
     nu = 2.0 * np.arctan2(np.sqrt(1 + e) * np.sin(E / 2), np.sqrt(1 - e) * np.cos(E / 2))
     r = a * (1 - e**2) / (1 + e * np.cos(nu))
 
     x_orb, y_orb = r * np.cos(nu), r * np.sin(nu)
-    R_total = rotation_matrix_multi(Omega, i, omega)
+    R_total = rotation_matrix_vectorized(Omega, i, omega)
     R_new = np.einsum('nij,nkj->nik', R_total, np.stack([x_orb, y_orb, np.zeros_like(x_orb)], axis=-1))
     R_new = R_new.squeeze()
     pos2_next = (MASS1 / (MASS1 + MASS2)) * R_new

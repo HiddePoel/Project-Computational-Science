@@ -1,5 +1,10 @@
 import numpy as np
 from twob import two_body_analytical_update
+import os
+
+import sys
+sys.path.append(os.path.abspath('../tests'))
+from optimized_twob import twobo
 
 
 def opening(pos_sat, pos_launch, normal_launch, goes_idx):
@@ -80,3 +85,9 @@ def update(sats_pos, sats_vel, planets_mass, dt):
                                                                       dt)
 
     return new_pos, new_vel
+
+
+def update_optimized(sats_pos, sats_vel, dt):
+    for sat in range(len(sats_pos)):
+        sats_pos[sat], sats_vel[sat] = twobo(sats_pos[sat], sats_vel[sat], 500, dt)
+    return sats_pos, sats_vel
