@@ -123,16 +123,39 @@ def is_facing_jupiter(earth_pos, jupiter_pos, closest_planet_pos):
     angle = calculate_angle(vector_ej, vector_ec)
     return angle <= 45.0
 
-def calculate_angle(vector1, vector2):
+import numpy as np
 
-    unit_v1 = vector1 / np.linalg.norm(vector1)
-    unit_v2 = vector2 / np.linalg.norm(vector2)
+
+def calculate_angle(vector1, vector2):
+    """
+    Calculates the angle (in degrees) between two 3D vectors using the dot product formula.
+
+    Parameters:
+    - vector1 (numpy.ndarray): A 3D vector represented as a NumPy array.
+    - vector2 (numpy.ndarray): Another 3D vector represented as a NumPy array.
+
+    Returns:
+    - float: The angle between the two vectors in degrees.
+    """
+
+    # Normalize both vectors to unit length
+    unit_v1 = vector1 / np.linalg.norm(vector1)  # Unit vector of vector1
+    unit_v2 = vector2 / np.linalg.norm(vector2)  # Unit vector of vector2
+
+    # Compute the dot product between the two unit vectors
     dot_product = np.dot(unit_v1, unit_v2)
-    # Clamp the dot product to avoid numerical errors
+
+    # Clamp the dot product value to the valid range [-1, 1] to avoid numerical errors
     dot_product = np.clip(dot_product, -1.0, 1.0)
+
+    # Compute the angle in radians using the inverse cosine (arccos) function
     angle_rad = np.arccos(dot_product)
+
+    # Convert the angle from radians to degrees
     angle_deg = np.degrees(angle_rad)
+
     return angle_deg
+
 
 def process_permutation(file_path):
     data = np.load(file_path, allow_pickle=True)

@@ -1,3 +1,5 @@
+# This file contains the analytical solution for the two-body problem
+
 import numpy as np
 
 # Gravitational constant in km^3 kg^-1 s^-2
